@@ -1,6 +1,4 @@
-.section .data
-ADDRESS: .word 0        
-.section .text
+.equ ADDRESS, 0x50002000
 .global main
 main:
     li      t0, 1        
