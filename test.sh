@@ -1,9 +1,8 @@
-TODO：请在此完成你自己项目的“说明书”。
-
 cd ~/fengxiyi23
+make clean
 mkdir build
 make elf
 cp createimage ./build
 cd build && chmod +x createimage && ./createimage --extended bootblock main && cd ..
-make run
-loadboot
+# make run
+# loadboot
