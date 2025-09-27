@@ -7,8 +7,6 @@
 #include <type.h>
 
 #define VERSION_BUF 50
-#define MAXNAME 8
-#define TASK_MAXNUM      16
 
 int version = 2; // version must between 0 and 9
 char buf[VERSION_BUF];
@@ -42,21 +40,8 @@ static void init_task_info(void)
 {
     // TODO: [p1-task4] Init 'tasks' array via reading app-info sector
     // NOTE: You need to get some related arguments from bootblock first
-    // short taskinfo_blockid = *(short *)0x502001fa;
-    // bios_sd_read(0x50400000, 1, taskinfo_blockid);
-
-    // task_info_t *cur_task = (task_info_t *)0x50400000;
-    // for(int i = 0; i < TASK_MAXNUM; ++i)
-    // {
-    //     for(int j = 0; j < TASK_MAXNUM; ++j)
-    //     {
-    //         tasks[i].task_name[j] = cur_task[i].task_name[j];
-    //     }
-    //     tasks[i].task_offset = cur_task[i].task_offset;
-    //     tasks[i].task_size = cur_task[i].task_size;
-    //     tasks[i].task_entry = cur_task[i].task_entry;
-    // }
 }
+
 
 /************************************************************/
 /* Do not touch this comment. Reserved for future projects. */
@@ -66,8 +51,6 @@ int main(void)
 {
     // Check whether .bss section is set to zero
     int check = bss_check();
-
-
 
     // Init jump table provided by kernel and bios(ΦωΦ)
     init_jmptab();
@@ -94,77 +77,48 @@ int main(void)
     bios_putstr("Hello OS!\n\r");
     bios_putstr(buf);
 
+    // [p1-task2]: get keyboard input to display on screen
+    // int ch;
+    // while(1)
+    // {
+    //     while((ch = bios_getchar())==-1);
+    //     bios_putchar(ch);
+    // }
+
     // TODO: Load tasks by either task id [p1-task3] or task name [p1-task4],
     //   and then execute them.
-    /*p1 task2*/
-    /*char keep_input;
+    int ch, taskid = 0;
     while(1)
     {
-        keep_input = bios_getchar();
-        if(keep_input == -1)
-        {
-            ;
-        }
-        else if(keep_input >= '0' && keep_input <= '9')
-        {
-            int num = keep_input - '0';
-            bios_putchar(keep_input);
-        }
-        else if(keep_input >= 'a' && keep_input <= 'z' || keep_input >= 'A' && keep_input <= 'Z')
-        {
-            bios_putchar(keep_input);
-        }
-        else if (keep_input == 13)
+        while((ch = bios_getchar()) == -1);
+        if(ch == '\r' || ch == '\n')
         {
             bios_putstr("\n\r");
+            if(taskid>0 && taskid<=TASK_MAXNUM)
+                // load_task_img(taskid);   false: only copy fun to mem, not excute
+                ((void (*)())load_task_img(taskid))();
+            else
+                bios_putstr("taskid not valid\n\r");
+            taskid = 0;
         }
-        else if (keep_input == 127)
+        else 
         {
-            bios_putstr("\b");
-        }
-    }*/
-    /*p1 task3*/
- while(1)
-    {
-        volatile int input_taskid = 0;
-        volatile int legal = 1;
-        volatile int enter_addr;
-        volatile int x = 0;
-        while(1)
-        {
-            x = port_read_ch();
-            while(x == -1)
-                x = port_read_ch();
-            port_write_ch(x);
-            if(x == '\n' || x == '\r')
-                break;
-            else if(x > '9' || x < '0')
+            bios_putchar(ch);
+            if(ch >= '0' && ch<='9')
             {
-                bios_putstr("Wrong taskid\n\r");
-                legal = 0;
-                break;
-            }
-            input_taskid = input_taskid * 10 + x - '0';
-        }
-        if(legal)
-        {
-            if(input_taskid > 3)
-            {
-                bios_putstr("Wrong taskid,too large\n\r");
+                taskid *= 10;
+                taskid += ch-'0';
             }
             else
             {
-                bios_putstr("task started\n\r");
-                enter_addr = load_task_img(input_taskid);
-                asm volatile(
-                    "jalr %[addr]"
-                    ::[addr] "r" (enter_addr)
-                );
-                bios_putstr("task finished\n\r");
+                bios_putstr("\n\r");
+                bios_putstr("input charator not valid, expecting number 0~9\n\r");
+                taskid = 0;
             }
-        }
+        }      
     }
-    
+
+
     // Infinite while loop, where CPU stays in a low-power state (QAQQQQQQQQQQQ)
     while (1)
     {
