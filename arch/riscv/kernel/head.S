@@ -18,16 +18,14 @@ ENTRY(_start)
   la    t1, __BSS_END__
 
 clear_bss:
-  bgt   t0, t1, end_clear_bss
-  sd    zero, 0(t0)
-  addi  t0, t0, 8
-  j     clear_bss
+  sw    zero, 0(t0)
+  addi  t0, t0, 4
+  blt   t0, t1, clear_bss
 
   /* TODO: [p1-task2] setup C environment */
 end_clear_bss:
   la    sp, KERNEL_STACK
-  mv    s0, sp
-  j     main
+  call  main
 
 loop:
   wfi
