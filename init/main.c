@@ -7,9 +7,12 @@
 #include <type.h>
 
 #define VERSION_BUF 50
+#define TASK_INFO_LOC 0x50200200
+#define TASK_NUM_LOC 0x502001fe
 
 int version = 2; // version must between 0 and 9
 char buf[VERSION_BUF];
+int tasknum;
 
 // Task info array
 task_info_t tasks[TASK_MAXNUM];
@@ -40,6 +43,25 @@ static void init_task_info(void)
 {
     // TODO: [p1-task4] Init 'tasks' array via reading app-info sector
     // NOTE: You need to get some related arguments from bootblock first
+    tasknum = *((short*)TASK_NUM_LOC);
+    // bios_putstr("tasknum: ");
+    // while(tasknum)
+    // {
+    //     bios_putchar(tasknum%10+'0');
+    //     tasknum /= 10;
+    // }
+    // bios_putstr("\n\r");
+    task_info_t* tasks_ptr = (task_info_t*)TASK_INFO_LOC;
+    for(int i=0; i<tasknum; i++)
+    {
+        tasks[i] = *(tasks_ptr++);
+        for(int j=0; j<16; j++) {
+            if(tasks[i].name[j] == 0) break;
+    bios_putchar(tasks[i].name[j]);
+}
+bios_putstr("\n\r");
+
+    }
 }
 
 
@@ -85,36 +107,79 @@ int main(void)
     //     bios_putchar(ch);
     // }
 
-    // TODO: Load tasks by either task id [p1-task3] or task name [p1-task4],
-    //   and then execute them.
-    int ch, taskid = 0;
+    // // [p1-task3]: Load tasks by task id and then execute them.
+    // int ch, taskid = 0;
+    // while(1)
+    // {
+    //     while((ch = bios_getchar()) == -1);
+    //     if(ch == '\r' || ch == '\n')
+    //     {
+    //         bios_putstr("\n\r");
+    //         if(taskid>0 && taskid<=TASK_MAXNUM)
+    //             // load_task_img(taskid);   false: only copy fun to mem, not excute
+    //             ((void (*)())load_task_img(taskid))();
+    //         else
+    //             bios_putstr("taskid not valid\n\r");
+    //         taskid = 0;
+    //     }
+    //     else 
+    //     {
+    //         bios_putchar(ch);
+    //         if(ch >= '0' && ch<='9')
+    //         {
+    //             taskid *= 10;
+    //             taskid += ch-'0';
+    //         }
+    //         else
+    //         {
+    //             bios_putstr("\n\r");
+    //             bios_putstr("input charator not valid, expecting number 0~9\n\r");
+    //             taskid = 0;
+    //         }
+    //     }      
+    // }
+
+    // [p1-task4]: Load tasks by task name and then execute them.
+    char name[16];
+    name[0] = '\0';
+    int flag = 0;
+    int name_ptr = 0, ch;
     while(1)
     {
         while((ch = bios_getchar()) == -1);
         if(ch == '\r' || ch == '\n')
         {
             bios_putstr("\n\r");
-            if(taskid>0 && taskid<=TASK_MAXNUM)
-                // load_task_img(taskid);   false: only copy fun to mem, not excute
-                ((void (*)())load_task_img(taskid))();
+            if(name_ptr != 0)
+            {
+                name[name_ptr] = '\0';
+                for(int i=0; i<tasknum; i++)
+                {
+                    if(strcmp(tasks[i].name, name) == 0)
+                    {
+                        bios_putstr("True\n\r");
+                        flag = 1;
+                        break;
+                    }
+                }
+                // ((void (*)())load_task_img_name(name))();
+                if(!flag)   bios_putstr("Flase\n\r");
+            }
             else
-                bios_putstr("taskid not valid\n\r");
-            taskid = 0;
+                bios_putstr("input task name empty!\n\r");
+            name_ptr = 0;
         }
         else 
         {
             bios_putchar(ch);
-            if(ch >= '0' && ch<='9')
-            {
-                taskid *= 10;
-                taskid += ch-'0';
-            }
-            else
+            if(name_ptr >= 16)
             {
                 bios_putstr("\n\r");
-                bios_putstr("input charator not valid, expecting number 0~9\n\r");
-                taskid = 0;
+                bios_putstr("input task name too long\n\r");
+                name_ptr = 0;
             }
+            else
+                name[name_ptr++] = ch;
         }      
     }
 

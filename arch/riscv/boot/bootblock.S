@@ -2,6 +2,8 @@
 
 // os size location (os_size could be sectors [p1-task3] or bytes [p1-task4])
 .equ os_size_loc, 0x502001fc
+.equ task_start_sec, 0x502001f8
+.equ task_info_loc, 0x50200200
 
 // kernel address (move kernel to here, and jmp here to start kernel)
 .equ kernel, 0x50201000
@@ -24,13 +26,20 @@ main:
 	// TODO: [p1-task2] call BIOS to read kernel in SD card
 	li		a7, BIOS_SDREAD
 	la		a0, kernel
-	li		a1, 4	# get from createimage
+	li		a1, 4	
 	li		a2, 1
 	call	bios_func_entry
 
 
 	// TODO: [p1-task4] load task-related arguments and pass them to kernel
+	// load	tasknum
+	la 		t0, task_start_sec
+	lw 		a2, 0(t0)
 
+	li		a7, BIOS_SDREAD
+	la		a0, task_info_loc
+	li		a1, 4	// 0x0200~0x1000
+	call	bios_func_entry
 
 	// TODO: [p1-task2] jump to kernel to start UCAS-OS
 	j		kernel

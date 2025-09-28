@@ -12,6 +12,8 @@
 #define SECTOR_SIZE 512
 #define BOOT_LOADER_SIG_OFFSET 0x1fe
 #define OS_SIZE_LOC (BOOT_LOADER_SIG_OFFSET - 2)
+#define TASK_BEGIN_SEC_LOC 0x1f8
+#define TASK_INFO_LOC 0x200 // can get app data before read kernel
 #define BOOT_LOADER_SIG_1 0x55
 #define BOOT_LOADER_SIG_2 0xaa
 
@@ -19,10 +21,10 @@
 
 /* TODO: [p1-task4] design your own task_info_t */
 typedef struct {
-    char        name[10];
     uint64_t    entry;
     int         offset;
     int         size;
+    char        name[16];
 } task_info_t;
 
 #define TASK_MAXNUM 16
@@ -46,7 +48,7 @@ static uint32_t get_memsz(Elf64_Phdr phdr);
 static void write_segment(Elf64_Phdr phdr, FILE *fp, FILE *img, int *phyaddr);
 static void write_padding(FILE *img, int *phyaddr, int new_phyaddr);
 static void write_img_info(int nbytes_kernel, task_info_t *taskinfo,
-                           short tasknum, FILE *img);
+                           short tasknum, FILE *img, int phyaddr);
 
 int main(int argc, char **argv)
 {
@@ -148,8 +150,6 @@ static void create_image(int nfiles, char *files[])
         // }
 
         //2. [p1-task4] only padding bootblock is allowed!
-        //
-
         if (strcmp(*files, "bootblock") == 0) 
         {
             write_padding(img, &phyaddr, SECTOR_SIZE);
@@ -162,12 +162,12 @@ static void create_image(int nfiles, char *files[])
         }
 
         if(taskidx >= 0)
-            taskinfo[taskidx].size = phyaddr - taskinfo[taskidx].size;
+            taskinfo[taskidx].size = phyaddr - taskinfo[taskidx].offset;
 
         fclose(fp);
         files++;
     }
-    write_img_info(nbytes_kernel, taskinfo, tasknum, img);
+    write_img_info(nbytes_kernel, taskinfo, tasknum, img, phyaddr);
 
     fclose(img);
 }
@@ -245,17 +245,26 @@ static void write_padding(FILE *img, int *phyaddr, int new_phyaddr)
 }
 
 static void write_img_info(int nbytes_kernel, task_info_t *taskinfo,
-                           short tasknum, FILE * img)
+                           short tasknum, FILE * img, int phyaddr)
 {
     // TODO: [p1-task3] & [p1-task4] write image info to some certain places
     // NOTE: os size, infomation about app-info sector(s) ...
     short os_sec = (short)NBYTES2SEC(nbytes_kernel);
-    fseek(img, OS_SIZE_LOC, SEEK_SET);
+    short task_start_sec = (short)NBYTES2SEC(phyaddr);    // sd_read start from 0
+    printf("task_start_sec: %d\n", (int)task_start_sec);
+    printf("task_num: %d\n", tasknum);
+    // write taskinfo in the end of image
+    fwrite(taskinfo, sizeof(task_info_t), tasknum, img);
+
+    // write task_start_sec: 0x01f8~0x1fc
+    fseek(img, TASK_BEGIN_SEC_LOC, SEEK_SET);
+    fwrite(&task_start_sec, sizeof(int), 1, img);
+
+    // write os size: 0x01fc~0x01fe
     fwrite(&os_sec, sizeof(short), 1, img);
 
-    // // write taskinfo
-    // fseek(img, , SEEK_SET);
-    
+    // write tasknum: 0x01fe~0x0200
+    fwrite(&tasknum, sizeof(short), 1, img);
 }
 
 /* print an error message and exit */
