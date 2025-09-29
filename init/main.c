@@ -9,6 +9,7 @@
 #define VERSION_BUF 50
 #define TASK_INFO_LOC 0x50200200
 #define TASK_NUM_LOC 0x502001fe
+#define TASK_INFO_START_LOC 0x502001f8
 
 int version = 2; // version must between 0 and 9
 char buf[VERSION_BUF];
@@ -43,25 +44,21 @@ static void init_task_info(void)
 {
     // TODO: [p1-task4] Init 'tasks' array via reading app-info sector
     // NOTE: You need to get some related arguments from bootblock first
-    tasknum = *((short*)TASK_NUM_LOC);
-    // bios_putstr("tasknum: ");
-    // while(tasknum)
-    // {
-    //     bios_putchar(tasknum%10+'0');
-    //     tasknum /= 10;
-    // }
-    // bios_putstr("\n\r");
-    task_info_t* tasks_ptr = (task_info_t*)TASK_INFO_LOC;
+    tasknum = *((short*)TASK_NUM_LOC);  // bootblock stage load: image->memory
+    int task_info_start_sec = *((int*)TASK_INFO_START_LOC);
+
+    unsigned sec_num = (unsigned)NBYTES2SEC(sizeof(task_info_t)*tasknum);
+    bios_sd_read((unsigned int)tasks, sec_num, task_info_start_sec);
+    bios_putstr("loaded apps: \n\r");
     for(int i=0; i<tasknum; i++)
     {
-        tasks[i] = *(tasks_ptr++);
         for(int j=0; j<16; j++) {
-            if(tasks[i].name[j] == 0) break;
-    bios_putchar(tasks[i].name[j]);
-}
-bios_putstr("\n\r");
-
+            if(tasks[i].name[j] == '\0') break;
+            bios_putchar(tasks[i].name[j]);
     }
+        bios_putstr("\n\r");
+    }
+    bios_putstr("\n\r");
 }
 
 
@@ -142,13 +139,13 @@ int main(void)
     // [p1-task4]: Load tasks by task name and then execute them.
     char name[16];
     name[0] = '\0';
-    int flag = 0;
     int name_ptr = 0, ch;
     while(1)
     {
         while((ch = bios_getchar()) == -1);
         if(ch == '\r' || ch == '\n')
         {
+            int flag = 0;
             bios_putstr("\n\r");
             if(name_ptr != 0)
             {
@@ -157,13 +154,12 @@ int main(void)
                 {
                     if(strcmp(tasks[i].name, name) == 0)
                     {
-                        bios_putstr("True\n\r");
+                        ((void (*)())load_task_img_name(i, tasks))();
                         flag = 1;
                         break;
                     }
                 }
-                // ((void (*)())load_task_img_name(name))();
-                if(!flag)   bios_putstr("Flase\n\r");
+                if(!flag)   bios_putstr("App name input error!\n\r");
             }
             else
                 bios_putstr("input task name empty!\n\r");

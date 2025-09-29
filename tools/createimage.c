@@ -91,6 +91,7 @@ static void create_image(int nfiles, char *files[])
     FILE *fp = NULL, *img = NULL;
     Elf64_Ehdr ehdr;
     Elf64_Phdr phdr;
+    int cur_tail = 0;   // used for p1-task3
 
     /* open the image file */
     img = fopen(IMAGE_FILE, "w");
@@ -138,7 +139,6 @@ static void create_image(int nfiles, char *files[])
         //TODO:
         //1. [p1-task3] do padding so that the kernel and every app program
         // occupies the same number of sectors
-        // int cur_tail = 0;
         // if (strcmp(*files, "bootblock") == 0) {
         //     write_padding(img, &phyaddr, SECTOR_SIZE);
         //     cur_tail += SECTOR_SIZE;
@@ -250,8 +250,8 @@ static void write_img_info(int nbytes_kernel, task_info_t *taskinfo,
     // TODO: [p1-task3] & [p1-task4] write image info to some certain places
     // NOTE: os size, infomation about app-info sector(s) ...
     short os_sec = (short)NBYTES2SEC(nbytes_kernel);
-    short task_start_sec = (short)NBYTES2SEC(phyaddr);    // sd_read start from 0
-    printf("task_start_sec: %d\n", (int)task_start_sec);
+    int task_start_sec = (int)NBYTES2SEC(phyaddr);    // sd_read start from 0
+    printf("task_start_sec: %d\n", task_start_sec);
     printf("task_num: %d\n", tasknum);
     // write taskinfo in the end of image
     fwrite(taskinfo, sizeof(task_info_t), tasknum, img);
