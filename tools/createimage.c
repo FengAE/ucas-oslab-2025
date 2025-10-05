@@ -154,12 +154,12 @@ static void create_image(int nfiles, char *files[])
         {
             write_padding(img, &phyaddr, SECTOR_SIZE);
         } 
-        else
-        {   
-            // ensure every part padding to sector_size
-            int next_offset = NBYTES2SEC(phyaddr) * SECTOR_SIZE;
-            write_padding(img, &phyaddr, next_offset);
-        }
+        // else
+        // {   
+        //     // ensure every part padding to sector_size
+        //     int next_offset = NBYTES2SEC(phyaddr) * SECTOR_SIZE;
+        //     write_padding(img, &phyaddr, next_offset);
+        // }
 
         if(taskidx >= 0)
             taskinfo[taskidx].size = phyaddr - taskinfo[taskidx].offset;
@@ -249,6 +249,7 @@ static void write_img_info(int nbytes_kernel, task_info_t *taskinfo,
 {
     // TODO: [p1-task3] & [p1-task4] write image info to some certain places
     // NOTE: os size, infomation about app-info sector(s) ...
+    write_padding(img, &phyaddr, NBYTES2SEC(phyaddr)*SECTOR_SIZE);
     short os_sec = (short)NBYTES2SEC(nbytes_kernel);
     int task_start_sec = (int)NBYTES2SEC(phyaddr);    // sd_read start from 0
     printf("task_start_sec: %d\n", task_start_sec);
