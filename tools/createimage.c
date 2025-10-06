@@ -11,7 +11,8 @@
 
 #define SECTOR_SIZE 512
 #define BOOT_LOADER_SIG_OFFSET 0x1fe
-#define OS_SIZE_LOC (BOOT_LOADER_SIG_OFFSET - 2)
+#define OS_SIZE_LOC (BOOT_LOADER_SIG_OFFSET - 2)    // 0x1fc
+#define BATCH_BEGIN_SEC_LOC 0x1f4
 #define TASK_BEGIN_SEC_LOC 0x1f8
 #define TASK_INFO_LOC 0x200 // can get app data before read kernel
 #define BOOT_LOADER_SIG_1 0x55
@@ -22,12 +23,15 @@
 /* TODO: [p1-task4] design your own task_info_t */
 typedef struct {
     uint64_t    entry;
+    int         is_batch;
     int         offset;
     int         size;
     char        name[16];
 } task_info_t;
 
+
 #define TASK_MAXNUM 16
+#define BATCH_MAXNUM 16
 #define EVERY_APP_SEC_NUM 15
 static task_info_t taskinfo[TASK_MAXNUM];
 
@@ -36,6 +40,13 @@ static struct {
     int vm;
     int extended;
 } options;
+
+typedef struct {
+    int         num;      // actual number of programs 
+    char        names[BATCH_MAXNUM][16]; 
+} batch_file_t;
+
+static batch_file_t batchfiles;
 
 /* prototypes of local functions */
 static void create_image(int nfiles, char *files[]);
@@ -49,6 +60,7 @@ static void write_segment(Elf64_Phdr phdr, FILE *fp, FILE *img, int *phyaddr);
 static void write_padding(FILE *img, int *phyaddr, int new_phyaddr);
 static void write_img_info(int nbytes_kernel, task_info_t *taskinfo,
                            short tasknum, FILE *img, int phyaddr);
+static void load_batchfile(const char *filename, batch_file_t *bf);
 
 int main(int argc, char **argv)
 {
@@ -115,6 +127,7 @@ static void create_image(int nfiles, char *files[])
             taskinfo[taskidx].entry = ehdr.e_entry;
             strcpy(taskinfo[taskidx].name, *files);
             taskinfo[taskidx].offset = phyaddr;
+            taskinfo[taskidx].is_batch = 0;
         }
 
 
@@ -249,16 +262,49 @@ static void write_img_info(int nbytes_kernel, task_info_t *taskinfo,
 {
     // TODO: [p1-task3] & [p1-task4] write image info to some certain places
     // NOTE: os size, infomation about app-info sector(s) ...
-    write_padding(img, &phyaddr, NBYTES2SEC(phyaddr)*SECTOR_SIZE);
     short os_sec = (short)NBYTES2SEC(nbytes_kernel);
     int task_start_sec = (int)NBYTES2SEC(phyaddr);    // sd_read start from 0
     printf("task_start_sec: %d\n", task_start_sec);
     printf("task_num: %d\n", tasknum);
+
     // write taskinfo in the end of image
+    write_padding(img, &phyaddr, task_start_sec*SECTOR_SIZE);
+    printf("write taskinfo at sec: %d\n", task_start_sec);
     fwrite(taskinfo, sizeof(task_info_t), tasknum, img);
 
+
+    // ------------[p1-task5] prepare batchfile---------------
+    // write batch file
+    int batch_start_sec = (int)NBYTES2SEC(phyaddr + SECTOR_SIZE - 1);
+    load_batchfile("/home/stu/fengxiyi23/bat.txt", &batchfiles);
+    for(int i=0; i<batchfiles.num; i++)
+    {
+        int fidx;
+        for(fidx=0; fidx<tasknum; fidx++)
+        {
+            if(strcmp(taskinfo[fidx].name, batchfiles.names[i]) == 0)
+            {
+                taskinfo[fidx].is_batch = 1;    // set batch_type 
+                printf("batch file: %s found in task list\n", batchfiles.names[i]);
+                break;
+            }
+        }
+        if(fidx == tasknum)
+            error("batch file %s not found in task list\n", batchfiles.names[i]);
+    }
+
+    write_padding(img, &phyaddr, batch_start_sec*SECTOR_SIZE);
+    fseek(img, batch_start_sec*SECTOR_SIZE, SEEK_SET);
+    printf("write batch files at sec: %d\n", batch_start_sec);
+    fwrite(&batchfiles, sizeof(batch_file_t), 1, img);
+
+    // write batch_start_sec: 0x01f4~0x01f8
+    fseek(img, BATCH_BEGIN_SEC_LOC, SEEK_SET);
+    fwrite(&batch_start_sec, sizeof(int), 1, img);
+    // --------------------------------------------------------
+
+
     // write task_start_sec: 0x01f8~0x1fc
-    fseek(img, TASK_BEGIN_SEC_LOC, SEEK_SET);
     fwrite(&task_start_sec, sizeof(int), 1, img);
 
     // write os size: 0x01fc~0x01fe
@@ -267,6 +313,28 @@ static void write_img_info(int nbytes_kernel, task_info_t *taskinfo,
     // write tasknum: 0x01fe~0x0200
     fwrite(&tasknum, sizeof(short), 1, img);
 }
+
+static void load_batchfile(const char *filename, batch_file_t *bf)
+{
+    FILE *fp = fopen(filename, "r");
+    if (!fp) {
+        perror("open bat.txt failed");
+        exit(1);
+    }
+    char line[64];  
+    int idx = 0;
+
+    while (fgets(line, sizeof(line), fp)) {
+        line[strcspn(line, "\r\n")] = '\0'; // discard newline characters
+        if (strlen(line) == 0) continue;  
+        if (idx >= BATCH_MAXNUM) break;  
+        strcpy(bf->names[idx], line);
+        bf->names[idx++][15] = '\0';
+    }
+    bf->num = idx;
+    fclose(fp);
+}
+
 
 /* print an error message and exit */
 static void error(char *fmt, ...)

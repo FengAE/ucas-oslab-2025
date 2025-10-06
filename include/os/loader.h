@@ -4,5 +4,5 @@
 #include <type.h>
 
 uint64_t load_task_img(int taskid);
-uint64_t load_task_img_name(int id, task_info_t* tasks);
+uint64_t load_task_img_name(const char* name, task_info_t* tasks, int tasknum);
 #endif
