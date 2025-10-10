@@ -53,7 +53,7 @@ void print_pc(long value)
     bios_putstr("\n");
 }
 
-int main(void)
+int main()
 {
     unsigned long testpc = 0;
     asm volatile("auipc %0, 0x0" : "+r"(testpc));

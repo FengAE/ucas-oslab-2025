@@ -4,7 +4,7 @@
 
 char buf[BUF_LEN];
 
-int main(void)
+int main()
 {
     // do bss_check
     int check_ok = 1;

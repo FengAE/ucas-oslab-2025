@@ -4,6 +4,10 @@
 #include <type.h>
 #include <common.h>
 
+// --------------- [p1-task5] ------------------
+#define BATCH_DATA_LOC 0x56000000
+// ---------------------------------------------
+
 #define KERNEL_JMPTAB_BASE 0x51ffff00
 typedef enum {
     CONSOLE_PUTSTR,

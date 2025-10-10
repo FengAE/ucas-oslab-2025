@@ -4,7 +4,7 @@
 #include <type.h>
 #define EVERY_APP_SEC 15
 
-#define BUFFER 0x58000000
+#define BUFFER 0x55000000
 
 uint64_t load_task_img(int taskid)
 {
@@ -16,7 +16,7 @@ uint64_t load_task_img(int taskid)
 }
 
 //2. [p1-task4] load task via task name, thus the arg should be 'char *taskname'
-void load_task_img_name(const char* name, task_info_t* tasks, int tasknum)
+void load_task_img_name(const char* name, task_info_t* tasks, int tasknum, bool is_batch)
 {
     int flag = 0, id = 0;
     for(int i=0; i<tasknum; i++)
@@ -43,5 +43,12 @@ void load_task_img_name(const char* name, task_info_t* tasks, int tasknum)
                 tasks[id].offset/SECTOR_SIZE);
     memcpy((void*)entry, (void*)(BUFFER + tasks[id].offset%SECTOR_SIZE), tasks[id].size);
 
-    ((void (*)())entry)();
+    int argc = 2;
+    char* argv[argc];
+    argv[0] = "./";    // argv[0]: ./taskname  here omit
+    if(is_batch)
+        argv[1] = "1";
+    else 
+        argv[1] = "0";
+    ((void (*)())entry)(argc, argv); 
 }

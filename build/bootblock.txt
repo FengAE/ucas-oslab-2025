@@ -8,17 +8,19 @@ Disassembly of section .text:
     50200000:	0ff0000f          	fence
     50200004:	48a5                	li	a7,9
     50200006:	00000517          	auipc	a0,0x0
-    5020000a:	04150513          	addi	a0,a0,65 # 50200047 <launch_msg>
+    5020000a:	04b50513          	addi	a0,a0,75 # 50200051 <launch_msg>
     5020000e:	fff50097          	auipc	ra,0xfff50
     50200012:	ff2080e7          	jalr	-14(ra) # 50150000 <bios_func_entry>
-    50200016:	48ad                	li	a7,11
-    50200018:	50201537          	lui	a0,0x50201
-    5020001c:	4591                	li	a1,4
-    5020001e:	4605                	li	a2,1
-    50200020:	fff50097          	auipc	ra,0xfff50
-    50200024:	fe0080e7          	jalr	-32(ra) # 50150000 <bios_func_entry>
-    50200028:	7d90006f          	j	50201000 <kernel>
+    50200016:	50200537          	lui	a0,0x50200
+    5020001a:	1fc5051b          	addiw	a0,a0,508 # 502001fc <os_size_loc>
+    5020001e:	00051583          	lh	a1,0(a0)
+    50200022:	48ad                	li	a7,11
+    50200024:	50201537          	lui	a0,0x50201
+    50200028:	4605                	li	a2,1
+    5020002a:	fff50097          	auipc	ra,0xfff50
+    5020002e:	fd6080e7          	jalr	-42(ra) # 50150000 <bios_func_entry>
+    50200032:	7cf0006f          	j	50201000 <kernel>
 
-000000005020002c <stop>:
-    5020002c:	a001                	j	5020002c <stop>
-    5020002e:	0001                	nop
+0000000050200036 <stop>:
+    50200036:	a001                	j	50200036 <stop>
+    50200038:	0001                	nop

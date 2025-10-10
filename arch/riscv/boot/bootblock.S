@@ -23,10 +23,13 @@ main:
 	la 		a0, launch_msg
 	call	bios_func_entry
 
+	// load os size from os_size_loc
+	li 		a0, os_size_loc
+	lh 		a1, 0(a0)			
+
 	// TODO: [p1-task2] call BIOS to read kernel in SD card
 	li		a7, BIOS_SDREAD
-	la		a0, kernel
-	li		a1, 4	
+	la		a0, kernel	
 	li		a2, 1
 	call	bios_func_entry
 

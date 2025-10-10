@@ -13,6 +13,10 @@
 #define BATCH_START_SEC_LOC 0x502001f4
 #define BUFFER 0x55000000
 
+// --------------- [p1-task5] ------------------
+// The same revise in /tiny_libc/include
+#define BATCH_DATA_LOC 0x56000000
+// ---------------------------------------------
 
 int version = 2; // version must between 0 and 9
 char buf[VERSION_BUF];
@@ -21,7 +25,7 @@ int tasknum;
 // Task info array
 task_info_t tasks[TASK_MAXNUM];
 
-static batch_file_t batchfiles __attribute__((aligned(512)));
+static batch_file_t batchfiles;
 
 static int bss_check(void)
 {
@@ -43,6 +47,7 @@ static void init_jmptab(void)
     jmptab[CONSOLE_PUTCHAR] = (long (*)())port_write_ch;
     jmptab[CONSOLE_GETCHAR] = (long (*)())port_read_ch;
     jmptab[SD_READ]         = (long (*)())sd_read;
+    jmptab[SD_WRITE]        = (long (*)())sd_write;
 }
 
 static void init_task_info(void)
@@ -54,8 +59,6 @@ static void init_task_info(void)
 
     unsigned sec_num = (unsigned)NBYTES2SEC(sizeof(task_info_t)*tasknum);
     bios_sd_read((unsigned int)tasks, sec_num, task_info_start_sec);
-    // bios_sd_read((unsigned int)BUFFER, sec_num, task_info_start_sec);
-    // memcpy((void*)tasks, (void*)BUFFER, sizeof(task_info_t)*tasknum);
     bios_putstr("loaded apps: \n\r");
     for(int i=0; i<tasknum; i++)
     {
@@ -76,11 +79,22 @@ static void load_batchfiles()
         while((ch = bios_getchar()) == -1);
         if(ch == '\r' || ch == '\n')
         {
+            if(name_ptr != 0)
+            {
+                name[name_ptr] = '\0';
+                strcpy(batchfiles.names[batchfiles.num++], name);
+                name_ptr = 0;
+            }
+            else
+            {
+                bios_putstr("Input empty, finish loading batch files");
+            }
             bios_putstr("\n\r");
             break;
         }
         else
         {
+            bios_putchar(ch);
             if(ch == ' ')
             {
                 if(name_ptr == 0)
@@ -91,6 +105,7 @@ static void load_batchfiles()
                     if(batchfiles.num >= BATCH_MAXNUM)
                     {
                         bios_putstr("batch file num exceed max limit\n\r");
+                        batchfiles.num = 0;
                         return;
                     }
                     strcpy(batchfiles.names[batchfiles.num++], name);
@@ -108,10 +123,15 @@ static void load_batchfiles()
                 else
                     name[name_ptr++] = ch;
             }
-            bios_putchar(ch);
         }
     }
-    bios_sd_write((unsigned int)&batchfiles, 1, batch_start_sec);       
+    for(int i=0; i<batchfiles.num; i++)
+    {
+        bios_putstr("batch file: ");
+        bios_putstr(batchfiles.names[i]);
+        bios_putstr("\n\r");
+    }
+    bios_sd_write((uint64_t)&batchfiles, 1, batch_start_sec);       
 }
 
 
@@ -126,19 +146,39 @@ void excute_batchfiles(task_info_t* tasks, int tasknum)
     // Load batch first in buffer, else might cause tasks data covered!!
     bios_sd_read((unsigned int)BUFFER, 1, batch_start_sec);
     memcpy((void*)&batchfiles, (void*)BUFFER, sizeof(batch_file_t));
-    for(int i=0; i<tasknum; i++)
-    {
-        bios_putstr(tasks[i].name);
-        bios_putstr("\n\r");
-    }
-    bios_putstr("\n\r");
 
+
+    // Need to load begin data from console
+    int ch, data = 0;
+    bios_putstr("Please input data the first batch file get:\n\r");
+    while(1)
+    {
+        while((ch = bios_getchar()) == -1);
+        if(ch == '\n' || ch == '\r')    
+        {
+            bios_putstr("\n\r");
+            break;
+        }
+        bios_putchar(ch);
+        if(ch >= '0' && ch <= '9')
+            data *= 10, data += ch-'0';
+        else
+        {
+            bios_putstr("Input not valid, expecting number 0~9\n\r");
+            data = 0;
+            continue;
+        }
+    }
+    *(int*)BATCH_DATA_LOC = data;
+
+
+    // Excute batch file
     for(int i=0; i<batchfiles.num; i++)
     {
         bios_putstr("excute batch file: ");
         bios_putstr(batchfiles.names[i]);
         bios_putstr("\n\r");
-        load_task_img_name(batchfiles.names[i], tasks, tasknum);
+        load_task_img_name(batchfiles.names[i], tasks, tasknum, true);
     }
 }
 
@@ -230,13 +270,12 @@ int main(void)
             if(name_ptr != 0)
             {
                 name[name_ptr] = '\0';
-                // if(strcmp(name, "load_bat") == 0)
-                //     load_batchfiles();
-                // else 
-                if(strcmp(name, "do_bat") == 0)
+                if(strcmp(name, "load_bat") == 0)
+                    load_batchfiles();
+                else if(strcmp(name, "do_bat") == 0)
                     excute_batchfiles(tasks, tasknum);
                 else 
-                    load_task_img_name(name, tasks, tasknum);
+                    load_task_img_name(name, tasks, tasknum, false);
             }
             else
                 bios_putstr("Input empty!\n\r");
