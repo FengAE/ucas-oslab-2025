@@ -1,4 +1,47 @@
-TODO：请在此完成你自己项目的“说明书”。
+## 代码框架
+
+```apl
+arch/riscv/	# 架构相关
+├── boot/          
+│   └── bootblock.S  # Bootloader主程序
+├── kernel/          
+│   └── head.S       # 内核入口点
+├── crt0/            
+│   └── crt0.S       # 用户程序入口点
+├── bios/         
+│   └── common.c     # BIOS函数封装
+└── include/         # 架构相关头文件
+    ├── asm/       
+    │   └── biosdef.h # BIOS函数ID定义
+    ├── asm.h        # 汇编宏定义
+    ├── common.h     # 通用定义，对应common.c
+    └── csr.h        # 控制状态寄存器定义
+
+kernel/	# 内核
+└── loader/          
+    └── loader.c     # 用户程序加载实现
+init/
+└── main.c          # 内核主程序
+libs/
+└── string.c        # 字符串处理函数库
+
+include/
+├── os/           
+│   ├── kernel.h    # 内核接口定义，定义了调用bios函数的跳转表
+│   ├── loader.h   
+│   ├── sched.h     # 调度器接口
+│   ├── string.h   
+│   └── task.h      # 任务管理定义
+└── type.h          # 基础类型定义
+
+tools/
+└── createimage.c   # 镜像创建工具源码
+build/	# 构建目录
+```
+
+
+
+
 
 ## task1：制作第一个引导块
 
