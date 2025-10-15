@@ -7,7 +7,7 @@ int main(int argc, char* argv[])
         data = *(int*)BATCH_DATA_LOC;
     else    // not bat
         data = 2;
-    int ret = data + 1;
+    int ret = data * data;
     int ret_tmp = ret;
     char buffer[10], in_buffer[10];
     int i=0, j=0;
@@ -31,10 +31,10 @@ int main(int argc, char* argv[])
     buffer[i] = '\0';
     in_buffer[j] = '\0';
 
-    bios_putstr("[add] Info: input data: ");
+    bios_putstr("[square] Info: input data: ");
     bios_putstr(in_buffer);
     bios_putstr("\n\r");
-    bios_putstr("[add] Info: add 1 result: ");
+    bios_putstr("[square] Info: add 1 result: ");
     bios_putstr(buffer);
     bios_putstr("\n\r");
 

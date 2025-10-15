@@ -28,6 +28,8 @@ int main(int argc, char* argv[])
         in_buffer[left] = in_buffer[right];
         in_buffer[right] = tmp;
     }
+    buffer[i] = '\0';
+    in_buffer[j] = '\0';
 
     bios_putstr("[mul] Info: input data: ");
     bios_putstr(in_buffer);

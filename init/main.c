@@ -134,6 +134,12 @@ static void load_batchfiles()
     bios_sd_write((uint64_t)&batchfiles, 1, batch_start_sec);       
 }
 
+void read_batchfiles()
+{
+    int batch_start_sec = *((int*)BATCH_START_SEC_LOC);
+    bios_sd_read((unsigned int)BUFFER, 1, batch_start_sec);
+    memcpy((void*)&batchfiles, (void*)BUFFER, sizeof(batch_file_t));
+}
 
 void excute_batchfiles(task_info_t* tasks, int tasknum)
 {
@@ -142,11 +148,7 @@ void excute_batchfiles(task_info_t* tasks, int tasknum)
         bios_putstr("No batch files loaded!\n\r");
         return;
     }
-    int batch_start_sec = *((int*)BATCH_START_SEC_LOC);
-    // Load batch first in buffer, else might cause tasks data covered!!
-    bios_sd_read((unsigned int)BUFFER, 1, batch_start_sec);
-    memcpy((void*)&batchfiles, (void*)BUFFER, sizeof(batch_file_t));
-
+    read_batchfiles();
 
     // Need to load begin data from console
     int ch, data = 0;
@@ -179,6 +181,21 @@ void excute_batchfiles(task_info_t* tasks, int tasknum)
         bios_putstr(batchfiles.names[i]);
         bios_putstr("\n\r");
         load_task_img_name(batchfiles.names[i], tasks, tasknum, true);
+    }
+}
+
+void list_batchfiles()
+{
+    if(batchfiles.num == 0)
+    {
+        bios_putstr("No batch files loaded!\n\r");
+        return;
+    }
+    bios_putstr("batch files:\n\r");
+    for(int i=0; i<batchfiles.num; i++)
+    {
+        bios_putstr(batchfiles.names[i]);
+        bios_putstr("\n\r");
     }
 }
 
@@ -215,7 +232,7 @@ int main(void)
 
     bios_putstr("Hello OS!\n\r");
     bios_putstr(buf);
-
+    read_batchfiles();
     // [p1-task2]: get keyboard input to display on screen
     // int ch;
     // while(1)
@@ -274,6 +291,8 @@ int main(void)
                     load_batchfiles();
                 else if(strcmp(name, "do_bat") == 0)
                     excute_batchfiles(tasks, tasknum);
+                else if(strcmp(name, "list_bat") == 0)
+                    list_batchfiles();
                 else 
                     load_task_img_name(name, tasks, tasknum, false);
             }
