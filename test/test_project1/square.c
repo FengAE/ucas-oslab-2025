@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
     bios_putstr("[square] Info: input data: ");
     bios_putstr(in_buffer);
     bios_putstr("\n\r");
-    bios_putstr("[square] Info: add 1 result: ");
+    bios_putstr("[square] Info: square result: ");
     bios_putstr(buffer);
     bios_putstr("\n\r");
 
