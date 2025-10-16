@@ -1,17 +1,33 @@
 #ifndef __INCLUDE_KERNEL_H__
 #define __INCLUDE_KERNEL_H__
 
+<<<<<<< HEAD
 // --------------- [p1-task5] ------------------
 #define BATCH_DATA_LOC 0x56000000
 // ---------------------------------------------
+=======
+#include <stdint.h>
+>>>>>>> 41adc07d0d2466919c6b22eec7001a078a0b06b3
 
 #define KERNEL_JMPTAB_BASE 0x51ffff00
 typedef enum {
     CONSOLE_PUTSTR,
     CONSOLE_PUTCHAR,
     CONSOLE_GETCHAR,
+    SD_READ,
+    SD_WRITE,
+    QEMU_LOGGING,
+    SET_TIMER,
+    READ_FDT,
+    MOVE_CURSOR,
+    PRINT,
+    YIELD,
+    MUTEX_INIT,
+    MUTEX_ACQ,
+    MUTEX_RELEASE,
     NUM_ENTRIES
 } jmptab_idx_t;
+
 
 static inline long call_jmptab(long which, long arg0, long arg1, long arg2, long arg3, long arg4)
 {
