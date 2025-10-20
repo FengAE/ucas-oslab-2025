@@ -38,6 +38,7 @@ int tasknum;
 task_info_t tasks[TASK_MAXNUM];
 
 static batch_file_t batchfiles;
+static void Backspace(int* name_ptr);
 
 static int bss_check(void)
 {
@@ -157,14 +158,14 @@ static void load_batchfiles()
     bios_sd_write((uint64_t)&batchfiles, 1, batch_start_sec);       
 }
 
-void read_batchfiles()
+static void read_batchfiles()
 {
     int batch_start_sec = *((int*)BATCH_START_SEC_LOC);
     bios_sd_read((unsigned int)BUFFER, 1, batch_start_sec);
     memcpy((void*)&batchfiles, (void*)BUFFER, sizeof(batch_file_t));
 }
 
-void excute_batchfiles(task_info_t* tasks, int tasknum)
+static void excute_batchfiles(task_info_t* tasks, int tasknum)
 {
     if(tasknum == 0)
     {
@@ -214,7 +215,7 @@ void excute_batchfiles(task_info_t* tasks, int tasknum)
     }
 }
 
-void Backspace(int* name_ptr)
+static void Backspace(int* name_ptr)
 {
     if(*name_ptr > 0)
     {
