@@ -118,6 +118,11 @@ static void load_batchfiles()
         }
         else
         {
+            if(ch == '\b' || ch == 127)
+            {
+                Backspace(&name_ptr);
+                continue;
+            }
             bios_putchar(ch);
             if(ch == ' ')
             {
@@ -149,12 +154,6 @@ static void load_batchfiles()
             }
         }
     }
-    for(int i=0; i<batchfiles.num; i++)
-    {
-        bios_putstr("batch file: ");
-        bios_putstr(batchfiles.names[i]);
-        bios_putstr("\n\r");
-    }
     bios_sd_write((uint64_t)&batchfiles, 1, batch_start_sec);       
 }
 
@@ -185,6 +184,15 @@ void excute_batchfiles(task_info_t* tasks, int tasknum)
             bios_putstr("\n\r");
             break;
         }
+        else if(ch == '\b' || ch == 127)
+        {
+            if(data > 0)
+            {
+                data /=10;
+                bios_putstr("\b \b");
+            }
+            continue;
+        }
         bios_putchar(ch);
         if(ch >= '0' && ch <= '9')
             data *= 10, data += ch-'0';
@@ -196,8 +204,6 @@ void excute_batchfiles(task_info_t* tasks, int tasknum)
         }
     }
     *(int*)BATCH_DATA_LOC = data;
-
-
     // Excute batch file
     for(int i=0; i<batchfiles.num; i++)
     {
@@ -205,6 +211,15 @@ void excute_batchfiles(task_info_t* tasks, int tasknum)
         bios_putstr(batchfiles.names[i]);
         bios_putstr("\n\r");
         load_task_img_name(batchfiles.names[i], tasks, tasknum, true);
+    }
+}
+
+void Backspace(int* name_ptr)
+{
+    if(*name_ptr > 0)
+    {
+        (*name_ptr)--;
+        bios_putstr("\b \b");
     }
 }
 
@@ -270,6 +285,7 @@ int main(void)
     init_task_info();
 
     // Output 'Hello OS!', bss check result and OS version
+    int check = bss_check();
     char output_str[] = "bss check: _ version: _\n\r";
     char output_val[2] = {0};
     int i, output_val_pos = 0;
@@ -344,6 +360,11 @@ int main(void)
         }
         else 
         {
+            if(ch == '\b' || ch == 127)
+            {
+                Backspace(&name_ptr);
+                continue;
+            }
             bios_putchar(ch);
             if(name_ptr >= 16)
             {
