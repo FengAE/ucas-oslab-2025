@@ -1,0 +1,30 @@
+
+build/fly4:     file format elf64-littleriscv
+
+
+Disassembly of section .text:
+
+0000000052030000 <_start>:
+    52030000:	00000297          	auipc	t0,0x0
+    52030004:	07028293          	addi	t0,t0,112 # 52030070 <__BSS_END__>
+    52030008:	00000317          	auipc	t1,0x0
+    5203000c:	06830313          	addi	t1,t1,104 # 52030070 <__BSS_END__>
+
+0000000052030010 <clear_bss>:
+    52030010:	0002a023          	sw	zero,0(t0)
+    52030014:	0291                	addi	t0,t0,4
+    52030016:	fe62cde3          	blt	t0,t1,52030010 <clear_bss>
+    5203001a:	1161                	addi	sp,sp,-8
+    5203001c:	e006                	sd	ra,0(sp)
+    5203001e:	010000ef          	jal	5203002e <main>
+    52030022:	6082                	ld	ra,0(sp)
+    52030024:	0121                	addi	sp,sp,8
+    52030026:	8082                	ret
+
+0000000052030028 <loop>:
+    52030028:	10500073          	wfi
+    5203002c:	bff5                	j	52030028 <loop>
+
+000000005203002e <main>:
+    5203002e:	4501                	li	a0,0
+    52030030:	8082                	ret

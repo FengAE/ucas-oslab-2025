@@ -21,6 +21,7 @@
 int version = 2; // version must between 0 and 9
 char buf[VERSION_BUF];
 int tasknum;
+static void Backspace(int* name_ptr);
 
 // Task info array
 task_info_t tasks[TASK_MAXNUM];
@@ -68,6 +69,16 @@ static void init_task_info(void)
     bios_putstr("\n\r");
 }
 
+static void Backspace(int* name_ptr)
+{
+    if(*name_ptr > 0)
+    {
+        (*name_ptr)--;
+        bios_putstr("\b \b");
+    }
+}
+
+
 static void load_batchfiles()
 {
     int batch_start_sec = *((int*)BATCH_START_SEC_LOC);
@@ -94,6 +105,11 @@ static void load_batchfiles()
         }
         else
         {
+            if(ch == '\b' || ch == 127)
+            {
+                Backspace(&name_ptr);
+                continue;
+            }
             bios_putchar(ch);
             if(ch == ' ')
             {
@@ -302,6 +318,11 @@ int main(void)
         }
         else 
         {
+            if(ch == '\b' || ch == 127)
+            {
+                Backspace(&name_ptr);
+                continue;
+            }
             bios_putchar(ch);
             if(name_ptr >= 16)
             {
