@@ -42,7 +42,8 @@ BOOT_CFLAGS     = $(CFLAGS) $(BOOT_INCLUDE) -Wl,--defsym=TEXT_START=$(BOOTLOADER
 KERNEL_INCLUDE  = -I$(DIR_ARCH)/include -Iinclude -Idrivers
 KERNEL_CFLAGS   = $(CFLAGS) $(KERNEL_INCLUDE) -Wl,--defsym=TEXT_START=$(KERNEL_ENTRYPOINT) -T riscv.lds
 
-USER_INCLUDE    = -I$(DIR_TINYLIBC)/include
+USER_INCLUDE    = -I$(DIR_TINYLIBC)/include -Iinclude  -I./arch/riscv/include
+# USER_INCLUDE    = -I$(DIR_TINYLIBC)/include
 USER_CFLAGS     = $(CFLAGS) $(USER_INCLUDE)
 USER_LDFLAGS    = -L$(DIR_BUILD) -ltinyc
 

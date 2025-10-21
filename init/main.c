@@ -23,11 +23,11 @@ extern void ret_from_exception();
 #define TASK_NUM_LOC 0x502001fe
 #define TASK_INFO_START_LOC 0x502001f8
 #define BATCH_START_SEC_LOC 0x502001f4
-#define BUFFER 0x55000000
+#define BUFFER 0x59000000
 
 // --------------- [p1-task5] ------------------
 // The same revise in /tiny_libc/include
-#define BATCH_DATA_LOC 0x56000000
+#define BATCH_DATA_LOC 0x59100000
 // ---------------------------------------------
 
 int version = 2; // version must between 0 and 9
@@ -251,7 +251,11 @@ static void init_pcb_stack(
       */
     regs_context_t *pt_regs =
         (regs_context_t *)(kernel_stack - sizeof(regs_context_t));
-
+    memset(pt_regs, 0, sizeof(regs_context_t));
+    // sbadaddr、scause ?
+    pt_regs->sepc = entry_point;
+    pt_regs->sstatus = (reg_t)SR_SPIE;
+    pt_regs->regs[2] = user_stack;  // sp
 
     /* TODO: [p2-task1] set sp to simulate just returning from switch_to
      * NOTE: you should prepare a stack, and push some values to
@@ -259,16 +263,44 @@ static void init_pcb_stack(
      */
     switchto_context_t *pt_switchto =
         (switchto_context_t *)((ptr_t)pt_regs - sizeof(switchto_context_t));
-
+    pcb->kernel_sp = (reg_t)pt_switchto; 
+    pcb->user_sp = user_stack;
+    pt_switchto->regs[0] = (reg_t)entry_point;     // ra        
+    pt_switchto->regs[1] = user_stack;  // sp
 }
 
 static void init_pcb(void)
 {
     /* TODO: [p2-task1] load needed tasks and init their corresponding PCB */
+    char pcb_test_tasks[][16] = {"print1", "print2", "fly"};
+    int pcb_test_num = sizeof(pcb_test_tasks) / sizeof(pcb_test_tasks[0]);
 
+    pid0_pcb.pid = 0;
+    pid0_pcb.status = TASK_RUNNING;
+    pid0_pcb.kernel_sp = allocKernelPage(1);
+    pid0_pcb.user_sp = 0;
+    init_pcb_stack(pid0_pcb.kernel_sp, pid0_pcb.user_sp, 0, &pid0_pcb);
+
+    for(int i=0; i<pcb_test_num; i++)
+    {
+        pcb[i].pid = i+1;
+        pcb[i].entry = load_task_img(pcb_test_tasks[i], tasks, tasknum);
+        init_pcb_stack(allocKernelPage(1), allocUserPage(1),
+                        pcb[i].entry, &pcb[i]);
+        printk("pid: %d, &pcb[%d]: 0x%x, &list: 0x%x, kernel_sp: 0x%x, user_sp: 0x%x\n",
+            pcb[i].pid,i,
+            &pcb[i],
+            &pcb[i].list,
+            pcb[i].kernel_sp,
+            pcb[i].user_sp
+        );
+        pcb[i].status = TASK_READY;
+        pcb[i].wakeup_time = 0;
+        queue_pushback(&ready_queue, &(pcb[i].list));
+    }
 
     /* TODO: [p2-task1] remember to initialize 'current_running' */
-
+    current_running = &pid0_pcb;
 }
 
 static void init_syscall(void)
@@ -341,12 +373,13 @@ int main(void)
         while((ch = bios_getchar()) == -1);
         if(ch == '\r' || ch == '\n')
         {
-            int flag = 0;
             bios_putstr("\n\r");
             if(name_ptr != 0)
             {
                 name[name_ptr] = '\0';
-                if(strcmp(name, "load_bat") == 0)
+                if(strcmp(name, "sched") == 0)
+                    do_scheduler();
+                else if(strcmp(name, "load_bat") == 0)
                     load_batchfiles();
                 else if(strcmp(name, "do_bat") == 0)
                     excute_batchfiles(tasks, tasknum);
@@ -379,16 +412,16 @@ int main(void)
     }
 
 
-    // Infinite while loop, where CPU stays in a low-power state (QAQQQQQQQQQQQ)
-    while (1)
-    {
-        // If you do non-preemptive scheduling, it's used to surrender control
-        do_scheduler();
+    // // Infinite while loop, where CPU stays in a low-power state (QAQQQQQQQQQQQ)
+    // while (1)
+    // {
+    //     // If you do non-preemptive scheduling, it's used to surrender control
+    //     do_scheduler();
 
-        // If you do preemptive scheduling, they're used to enable CSR_SIE and wfi
-        // enable_preempt();
-        // asm volatile("wfi");
-    }
+    //     // If you do preemptive scheduling, they're used to enable CSR_SIE and wfi
+    //     // enable_preempt();
+    //     // asm volatile("wfi");
+    // }
 
     return 0;
 }

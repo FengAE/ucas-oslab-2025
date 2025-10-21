@@ -290,7 +290,7 @@ static void write_img_info(int nbytes_kernel, task_info_t *taskinfo,
             }
         }
         if(fidx == tasknum)
-            error("batch file %s not found in task list\n", batchfiles.names[i]);
+            printf("batch file %s not found in task list\n", batchfiles.names[i]);
     }
 
     write_padding(img, &phyaddr, batch_start_sec*SECTOR_SIZE);

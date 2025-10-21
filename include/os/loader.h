@@ -4,6 +4,6 @@
 #include <type.h>
 #include <os/task.h>
 
-uint64_t load_task_img(int taskid);
+uint64_t load_task_img(const char* name, task_info_t* tasks, int tasknum);
 uint64_t load_task_img_name(const char* name, task_info_t* tasks, int tasknum, bool is_batch);
 #endif

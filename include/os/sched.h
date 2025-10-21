@@ -85,6 +85,8 @@ typedef struct pcb
     /* time(seconds) to wake up sleeping PCB */
     uint64_t wakeup_time;
 
+    ptr_t entry;
+
 } pcb_t;
 
 /* ready queue to run */
@@ -101,7 +103,7 @@ extern pcb_t pcb[NUM_MAX_TASK];
 extern pcb_t pid0_pcb;
 extern const ptr_t pid0_stack;
 
-extern void switch_to(pcb_t *prev, pcb_t *next);
+extern void switch_to(reg_t prev, reg_t next);
 void do_scheduler(void);
 void do_sleep(uint32_t);
 

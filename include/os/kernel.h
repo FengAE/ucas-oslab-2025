@@ -5,10 +5,28 @@
 #include <common.h>
 
 // --------------- [p1-task5] ------------------
-#define BATCH_DATA_LOC 0x56000000
+#define BATCH_DATA_LOC 0x59100000
 // ---------------------------------------------
 
 #define KERNEL_JMPTAB_BASE 0x51ffff00
+// typedef enum {
+//     CONSOLE_PUTSTR,
+//     CONSOLE_PUTCHAR,
+//     CONSOLE_GETCHAR,
+//     SD_READ,
+//     SD_WRITE,
+//     QEMU_LOGGING,
+//     SET_TIMER,
+//     READ_FDT,
+//     MOVE_CURSOR,
+//     PRINT,
+//     YIELD,
+//     MUTEX_INIT,
+//     MUTEX_ACQ,
+//     MUTEX_RELEASE,
+//     NUM_ENTRIES
+// } jmptab_idx_t;
+
 typedef enum {
     CONSOLE_PUTSTR,
     CONSOLE_PUTCHAR,
@@ -19,6 +37,8 @@ typedef enum {
     SET_TIMER,
     READ_FDT,
     MOVE_CURSOR,
+    WRITE,
+    REFLUSH,
     PRINT,
     YIELD,
     MUTEX_INIT,

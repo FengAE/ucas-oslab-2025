@@ -30,10 +30,18 @@ void do_scheduler(void)
     /************************************************************/
 
     // TODO: [p2-task1] Modify the current_running pointer.
-
-
-    // TODO: [p2-task1] switch_to current_running
-
+    if(current_running->status == TASK_READY)
+    {
+        current_running->status = TASK_RUNNING;
+    }
+    else if(current_running->status == TASK_RUNNING)
+    {
+        if(queue_empty(&ready_queue))   return;
+        pcb_t* next = (pcb_t*)((char*)queue_popfront(&ready_queue) - 16);
+        pcb_t* prev = current_running;
+        // current_running = next;
+        switch_to(prev->kernel_sp, next->kernel_sp);
+    }
 }
 
 void do_sleep(uint32_t sleep_time)
@@ -53,4 +61,25 @@ void do_block(list_node_t *pcb_node, list_head *queue)
 void do_unblock(list_node_t *pcb_node)
 {
     // TODO: [p2-task2] unblock the `pcb` from the block queue
+}
+
+bool queue_empty(list_node_t* queue)
+{
+    return queue->next == queue;
+}
+
+void queue_pushback(list_head* queue, list_node_t* node)
+{
+    list_node_t* tail = queue->prev;
+    tail->next = node, node->next = queue;
+    queue->prev = node, node->prev = tail;
+}
+
+list_node_t* queue_popfront(list_head* queue)
+{
+    if(queue_empty(queue))   return NULL;
+    list_node_t* head = queue->next;
+    queue->next = head->next;
+    head->next->prev = queue;
+    return head;
 }
