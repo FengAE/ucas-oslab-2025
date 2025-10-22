@@ -277,7 +277,7 @@ static void init_pcb_stack(
 static void init_pcb(void)
 {
     /* TODO: [p2-task1] load needed tasks and init their corresponding PCB */
-    char pcb_test_tasks[][16] = {"fly", "print1", "print2"};
+    char pcb_test_tasks[][16] = {"print1", "print2", "lock1", "lock2", "fly"};
     int pcb_test_num = sizeof(pcb_test_tasks) / sizeof(pcb_test_tasks[0]);
 
     pid0_pcb.pid = 0;
@@ -293,13 +293,6 @@ static void init_pcb(void)
         pcb[i].entry = load_task_img(pcb_test_tasks[i], tasks, tasknum);
         init_pcb_stack(allocKernelPage(1), allocUserPage(1),
                         pcb[i].entry, &pcb[i]);
-        // printk("pid: %d, &pcb[%d]: 0x%x, &list: 0x%x, kernel_sp: 0x%x, user_sp: 0x%x\n",
-        //     pcb[i].pid,i,
-        //     &pcb[i],
-        //     &pcb[i].list,
-        //     pcb[i].kernel_sp,
-        //     pcb[i].user_sp
-        // );
         pcb[i].status = TASK_READY;
         pcb[i].wakeup_time = 0;
         queue_pushback(&ready_queue, &(pcb[i].list));
@@ -368,65 +361,65 @@ int main(void)
     // NOTE: The function of sstatus.sie is different from sie's
     
 
-    read_batchfiles();
-    // [p1-task4]: Load tasks by task name and then execute them.
-    char name[16];
-    name[0] = '\0';
-    int name_ptr = 0, ch;
-    while(1)
-    {
-        while((ch = bios_getchar()) == -1);
-        if(ch == '\r' || ch == '\n')
-        {
-            bios_putstr("\n\r");
-            if(name_ptr != 0)
-            {
-                name[name_ptr] = '\0';
-                if(strcmp(name, "sched") == 0)
-                    do_scheduler();
-                else if(strcmp(name, "load_bat") == 0)
-                    load_batchfiles();
-                else if(strcmp(name, "do_bat") == 0)
-                    excute_batchfiles(tasks, tasknum);
-                else if(strcmp(name, "ls") == 0)
-                    list_files();
-                else 
-                    excute_by_name(name, tasks, tasknum, false);
-            }
-            else
-                bios_putstr("Input empty!\n\r");
-            name_ptr = 0;
-        }
-        else 
-        {
-            if(ch == '\b' || ch == 127)
-            {
-                Backspace(&name_ptr);
-                continue;
-            }
-            bios_putchar(ch);
-            if(name_ptr >= 16)
-            {
-                bios_putstr("\n\r");
-                bios_putstr("input task name too long\n\r");
-                name_ptr = 0;
-            }
-            else
-                name[name_ptr++] = ch;
-        }      
-    }
-
-
-    // // Infinite while loop, where CPU stays in a low-power state (QAQQQQQQQQQQQ)
-    // while (1)
+    // read_batchfiles();
+    // // [p1-task4]: Load tasks by task name and then execute them.
+    // char name[16];
+    // name[0] = '\0';
+    // int name_ptr = 0, ch;
+    // while(1)
     // {
-    //     // If you do non-preemptive scheduling, it's used to surrender control
-    //     do_scheduler();
-
-    //     // If you do preemptive scheduling, they're used to enable CSR_SIE and wfi
-    //     // enable_preempt();
-    //     // asm volatile("wfi");
+    //     while((ch = bios_getchar()) == -1);
+    //     if(ch == '\r' || ch == '\n')
+    //     {
+    //         bios_putstr("\n\r");
+    //         if(name_ptr != 0)
+    //         {
+    //             name[name_ptr] = '\0';
+    //             if(strcmp(name, "sched") == 0)
+    //                 do_scheduler();
+    //             else if(strcmp(name, "load_bat") == 0)
+    //                 load_batchfiles();
+    //             else if(strcmp(name, "do_bat") == 0)
+    //                 excute_batchfiles(tasks, tasknum);
+    //             else if(strcmp(name, "ls") == 0)
+    //                 list_files();
+    //             else 
+    //                 excute_by_name(name, tasks, tasknum, false);
+    //         }
+    //         else
+    //             bios_putstr("Input empty!\n\r");
+    //         name_ptr = 0;
+    //     }
+    //     else 
+    //     {
+    //         if(ch == '\b' || ch == 127)
+    //         {
+    //             Backspace(&name_ptr);
+    //             continue;
+    //         }
+    //         bios_putchar(ch);
+    //         if(name_ptr >= 16)
+    //         {
+    //             bios_putstr("\n\r");
+    //             bios_putstr("input task name too long\n\r");
+    //             name_ptr = 0;
+    //         }
+    //         else
+    //             name[name_ptr++] = ch;
+    //     }      
     // }
+
+
+    // Infinite while loop, where CPU stays in a low-power state (QAQQQQQQQQQQQ)
+    while (1)
+    {
+        // If you do non-preemptive scheduling, it's used to surrender control
+        do_scheduler();
+
+        // If you do preemptive scheduling, they're used to enable CSR_SIE and wfi
+        // enable_preempt();
+        // asm volatile("wfi");
+    }
 
     return 0;
 }

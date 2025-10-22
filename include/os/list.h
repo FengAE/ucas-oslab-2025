@@ -54,5 +54,6 @@ typedef list_node_t list_head;
 void queue_pushback(list_head* queue, list_node_t* node);
 bool queue_empty(list_head* queue);
 void move_next(list_head* queue);
+void queue_remove(list_node_t* node);
 
 #endif
