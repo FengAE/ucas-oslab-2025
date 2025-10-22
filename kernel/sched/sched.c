@@ -14,12 +14,12 @@ pcb_t pid0_pcb = {
     .kernel_sp = (ptr_t)pid0_stack,
     .user_sp = (ptr_t)pid0_stack
 };
-
 LIST_HEAD(ready_queue);
 LIST_HEAD(sleep_queue);
 
 /* global process id */
 pid_t process_id = 1;
+list_node_t* cur_ready = &ready_queue;   // ready_queue cur ptr 
 
 void do_scheduler(void)
 {
@@ -36,11 +36,13 @@ void do_scheduler(void)
     }
     else if(current_running->status == TASK_RUNNING)
     {
+        current_running->status = TASK_READY;
         if(queue_empty(&ready_queue))   return;
-        pcb_t* next = (pcb_t*)((char*)queue_popfront(&ready_queue) - 16);
-        pcb_t* prev = current_running;
-        // current_running = next;
-        switch_to(prev->kernel_sp, next->kernel_sp);
+        pcb_t* prev_running = current_running;
+        move_next(&ready_queue);
+        current_running = (pcb_t*)((char*)cur_ready- 16);
+        current_running->status = TASK_RUNNING;
+        switch_to(prev_running->kernel_sp, current_running->kernel_sp);
     }
 }
 
@@ -75,11 +77,9 @@ void queue_pushback(list_head* queue, list_node_t* node)
     queue->prev = node, node->prev = tail;
 }
 
-list_node_t* queue_popfront(list_head* queue)
+void move_next(list_head* queue)
 {
-    if(queue_empty(queue))   return NULL;
-    list_node_t* head = queue->next;
-    queue->next = head->next;
-    head->next->prev = queue;
-    return head;
+    cur_ready = cur_ready->next;
+    if(cur_ready == queue)  // last one is the tail
+        cur_ready = queue->next;
 }

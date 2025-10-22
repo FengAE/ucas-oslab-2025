@@ -32,7 +32,7 @@ uint64_t load_task_img(const char* name, task_info_t* tasks, int tasknum)
 }
 
 //2. [p1-task4] load task via task name, thus the arg should be 'char *taskname'
-void load_task_img_name(const char* name, task_info_t* tasks, int tasknum, bool is_batch)
+void excute_by_name(const char* name, task_info_t* tasks, int tasknum, bool is_batch)
 {
     uint64_t entry = load_task_img(name, tasks, tasknum);
 
@@ -43,5 +43,6 @@ void load_task_img_name(const char* name, task_info_t* tasks, int tasknum, bool 
         argv[1] = "1";
     else 
         argv[1] = "0";
-    ((void (*)())entry)(argc, argv); 
+    if(entry != 0)
+        ((void (*)())entry)(argc, argv); 
 }

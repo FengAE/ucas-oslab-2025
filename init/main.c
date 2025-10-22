@@ -72,7 +72,8 @@ static void init_jmptab(void)
     jmptab[MUTEX_RELEASE]   = (long (*)())do_mutex_lock_release;
 
     // TODO: [p2-task1] (S-core) initialize system call table.
-
+    jmptab[WRITE]           = (volatile long (*)())screen_write;
+    jmptab[REFLUSH]         = (volatile long (*)())screen_reflush;
 }
 
 static void init_task_info(void)
@@ -84,13 +85,6 @@ static void init_task_info(void)
 
     unsigned sec_num = (unsigned)NBYTES2SEC(sizeof(task_info_t)*tasknum);
     bios_sd_read((unsigned int)tasks, sec_num, task_info_start_sec);
-    bios_putstr("loaded apps: \n\r");
-    for(int i=0; i<tasknum; i++)
-    {
-        bios_putstr(tasks[i].name);
-        bios_putstr("\n\r");
-    }
-    bios_putstr("\n\r");
 }
 
 static void load_batchfiles()
@@ -211,7 +205,7 @@ static void excute_batchfiles(task_info_t* tasks, int tasknum)
         bios_putstr("excute batch file: ");
         bios_putstr(batchfiles.names[i]);
         bios_putstr("\n\r");
-        load_task_img_name(batchfiles.names[i], tasks, tasknum, true);
+        excute_by_name(batchfiles.names[i], tasks, tasknum, true);
     }
 }
 
@@ -224,19 +218,30 @@ static void Backspace(int* name_ptr)
     }
 }
 
-void list_batchfiles()
+void list_files()
 {
+    bios_putstr("(loaded apps): \n\r");
+    if(tasknum == 0)    bios_putstr("No app files\n\r");
+    else{
+        for(int i=0; i<tasknum; i++)
+        {
+            bios_putstr(tasks[i].name);
+            bios_putstr("\n\r");
+        }
+    }
+    bios_putstr("(batch files):\n\r");
     if(batchfiles.num == 0)
     {
         bios_putstr("No batch files loaded!\n\r");
-        return;
     }
-    bios_putstr("batch files:\n\r");
-    for(int i=0; i<batchfiles.num; i++)
-    {
-        bios_putstr(batchfiles.names[i]);
-        bios_putstr("\n\r");
+    else{
+        for(int i=0; i<batchfiles.num; i++)
+        {
+            bios_putstr(batchfiles.names[i]);
+            bios_putstr("\n\r");
+        }
     }
+    bios_putstr("\n\r");
 }
 
 /************************************************************/
@@ -272,13 +277,14 @@ static void init_pcb_stack(
 static void init_pcb(void)
 {
     /* TODO: [p2-task1] load needed tasks and init their corresponding PCB */
-    char pcb_test_tasks[][16] = {"print1", "print2", "fly"};
+    char pcb_test_tasks[][16] = {"fly", "print1", "print2"};
     int pcb_test_num = sizeof(pcb_test_tasks) / sizeof(pcb_test_tasks[0]);
 
     pid0_pcb.pid = 0;
     pid0_pcb.status = TASK_RUNNING;
     pid0_pcb.kernel_sp = allocKernelPage(1);
     pid0_pcb.user_sp = 0;
+    pid0_pcb.cursor_x = pid0_pcb.cursor_y = 0;
     init_pcb_stack(pid0_pcb.kernel_sp, pid0_pcb.user_sp, 0, &pid0_pcb);
 
     for(int i=0; i<pcb_test_num; i++)
@@ -287,13 +293,13 @@ static void init_pcb(void)
         pcb[i].entry = load_task_img(pcb_test_tasks[i], tasks, tasknum);
         init_pcb_stack(allocKernelPage(1), allocUserPage(1),
                         pcb[i].entry, &pcb[i]);
-        printk("pid: %d, &pcb[%d]: 0x%x, &list: 0x%x, kernel_sp: 0x%x, user_sp: 0x%x\n",
-            pcb[i].pid,i,
-            &pcb[i],
-            &pcb[i].list,
-            pcb[i].kernel_sp,
-            pcb[i].user_sp
-        );
+        // printk("pid: %d, &pcb[%d]: 0x%x, &list: 0x%x, kernel_sp: 0x%x, user_sp: 0x%x\n",
+        //     pcb[i].pid,i,
+        //     &pcb[i],
+        //     &pcb[i].list,
+        //     pcb[i].kernel_sp,
+        //     pcb[i].user_sp
+        // );
         pcb[i].status = TASK_READY;
         pcb[i].wakeup_time = 0;
         queue_pushback(&ready_queue, &(pcb[i].list));
@@ -339,7 +345,6 @@ int main(void)
     // Init Process Control Blocks |•'-'•) ✧
     init_pcb();
     printk("> [INIT] PCB initialization succeeded.\n");
-
     // Read CPU frequency (｡•ᴗ-)_
     time_base = bios_read_fdt(TIMEBASE);
 
@@ -356,7 +361,7 @@ int main(void)
     printk("> [INIT] System call initialized successfully.\n");
 
     // Init screen (QAQ)
-    init_screen();
+    init_screen();   
     printk("> [INIT] SCREEN initialization succeeded.\n");
 
     // TODO: [p2-task4] Setup timer interrupt and enable all interrupt globally
@@ -383,10 +388,10 @@ int main(void)
                     load_batchfiles();
                 else if(strcmp(name, "do_bat") == 0)
                     excute_batchfiles(tasks, tasknum);
-                else if(strcmp(name, "list_bat") == 0)
-                    list_batchfiles();
+                else if(strcmp(name, "ls") == 0)
+                    list_files();
                 else 
-                    load_task_img_name(name, tasks, tasknum, false);
+                    excute_by_name(name, tasks, tasknum, false);
             }
             else
                 bios_putstr("Input empty!\n\r");

@@ -85,8 +85,6 @@ ENTRY(switch_to)
   ld    s9, SWITCH_TO_S9(a1)
   ld    s10, SWITCH_TO_S10(a1)
   ld    s11, SWITCH_TO_S11(a1)
-
-  mv    tp, a1  # revise tp to point new pcb
   ; addi sp, sp, SWITCH_TO_SIZE
   jr ra
 ENDPROC(switch_to)

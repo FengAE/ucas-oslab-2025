@@ -138,5 +138,5 @@ void screen_reflush(void)
     }
 
     /* recover cursor position */
-    vt100_move_cursor(current_running->cursor_x, current_running->cursor_y);
+    vt100_move_cursor(current_running->cursor_x, current_running->cursor_y-1);
 }
