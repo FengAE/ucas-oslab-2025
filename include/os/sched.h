@@ -108,7 +108,9 @@ void do_scheduler(void);
 void do_sleep(uint32_t);
 
 void do_block(list_node_t *, list_head *queue);
-void do_unblock(list_node_t *);
+// void do_unblock(list_node_t *);
+int do_unblock(list_node_t *);
+list_node_t* queue_popfront(list_head* queue);
 
 /************************************************************/
 /* Do not touch this comment. Reserved for future projects. */

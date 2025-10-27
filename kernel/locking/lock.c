@@ -73,9 +73,7 @@ void do_mutex_lock_acquire(int mlock_idx)
 void do_mutex_lock_release(int mlock_idx)
 {
     /* TODO: [p2-task2] release mutex lock */
-    if(mlocks[mlock_idx].lock.status == LOCKED)
-    {
-        do_unblock(&current_running->list);
-        mlocks[mlock_idx].lock.status = UNLOCKED;
-    }
+    //mlocks[mlock_idx].lock.status = UNLOCKED;
+    if(!do_unblock(&(mlocks[mlock_idx].block_queue))) mlocks[mlock_idx].lock.status = UNLOCKED;//mlocks[mlock_idx].key = 0;
+    //the block_queue is empty means that the duty of this lock is accomplished. set key to 0 to enable another initialize.
 }

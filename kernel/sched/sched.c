@@ -21,6 +21,7 @@ LIST_HEAD(sleep_queue);
 /* global process id */
 pid_t process_id = 1;
 list_node_t* cur_ready = &ready_queue;   // ready_queue cur ptr 
+list_node_t* prev_running_node = NULL;
 
 void do_scheduler(void)
 {
@@ -31,6 +32,7 @@ void do_scheduler(void)
     /************************************************************/
 
     // TODO: [p2-task1] Modify the current_running pointer.
+    if(current_running == NULL) return;
     if(current_running->status == TASK_READY)
     {
         current_running->status = TASK_RUNNING;
@@ -38,13 +40,15 @@ void do_scheduler(void)
     else if(current_running->status == TASK_RUNNING)
     {
         current_running->status = TASK_READY;
-        if(queue_empty(&ready_queue))   return;
         pcb_t* prev_running = current_running;
-        move_next(&ready_queue);
-        current_running = LIST_TO_PCB(cur_ready);
+        list_node_t* new_head = queue_popfront(&ready_queue);   // remove current_running
+        queue_pushback(new_head, &current_running->list);
+        ready_queue = *new_head;
+        current_running = LIST_TO_PCB(new_head);
         current_running->status = TASK_RUNNING;
         switch_to(prev_running->kernel_sp, current_running->kernel_sp);
     }
+
 }
 
 void do_sleep(uint32_t sleep_time)
@@ -56,26 +60,33 @@ void do_sleep(uint32_t sleep_time)
     // 3. reschedule because the current_running is blocked.
 }
 
-void do_block(list_node_t *pcb_node, list_head *queue)
+void do_block(list_node_t *pcb_node, list_head *block_queue)
 {
     // TODO: [p2-task2] block the pcb task into the block queue
-    queue_pushback(queue, pcb_node);       // push to block_queue
-    current_running->status = TASK_BLOCKED;
-    do_scheduler();  
+    // USE: do_block(&current_running->list, ...);
+    if((LIST_TO_PCB(pcb_node))->status != TASK_BLOCKED)
+    {
+        // first in: in ready_queue
+        printk("into block\n");
+        list_node_t* new_head = queue_popfront(&ready_queue);
+        ready_queue = *new_head;
+        current_running->status = TASK_BLOCKED;
+        queue_pushback(block_queue, &current_running->list);
+        pcb_t* prev_running = current_running;
+        current_running = LIST_TO_PCB(new_head);
+        current_running->status = TASK_RUNNING;
+        switch_to(prev_running->kernel_sp, current_running->kernel_sp);
+    }
 }
 
-void do_unblock(list_node_t *pcb_node)
+int do_unblock(list_head *queue)
 {
     // TODO: [p2-task2] unblock the `pcb` from the block queue
-    queue_remove(pcb_node); // remove from block_queue
-    pcb_t* cur_pcb = LIST_TO_PCB(pcb_node);
-    cur_pcb->status = TASK_READY;
-    queue_pushback(&ready_queue, pcb_node);
-}
-
-bool queue_empty(list_node_t* queue)
-{
-    return queue->next == queue;
+    list_node_t* node = queue_popfront(queue);
+    if(!node) return 0;
+    (LIST_TO_PCB(node))->status = TASK_READY;
+    queue_pushback(&ready_queue, node);
+    return 1;
 }
 
 void queue_pushback(list_head* queue, list_node_t* node)
@@ -85,17 +96,12 @@ void queue_pushback(list_head* queue, list_node_t* node)
     queue->prev = node, node->prev = tail;
 }
 
-void queue_remove(list_node_t* node)    
-{   
-    if(queue_empty(node))   return; // not in any queue
-    list_node_t* prev = node->prev;
-    prev->next = node->next;
-    node->next->prev = prev;
-}
-
-void move_next(list_head* queue)
+// return new_head
+list_node_t* queue_popfront(list_head* queue)
 {
-    cur_ready = cur_ready->next;
-    if(cur_ready == queue)  // last one is the tail
-        cur_ready = queue->next;
+    if(queue->next == queue)    return NULL;
+    list_node_t* Next = queue->next;
+    Next->prev = queue->prev;
+    queue->prev->next = Next;
+    return Next;
 }
