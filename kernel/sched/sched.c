@@ -78,15 +78,15 @@ void do_block(list_node_t *pcb_node, list_head *block_queue)
     }
 }
 
-int do_unblock(list_head *queue)
+bool do_unblock(list_head *queue)
 {
     // TODO: [p2-task2] unblock the `pcb` from the block queue
     list_node_t* tmp = queue->next;
     list_node_t* node = queue_popfront(tmp);
-    if(!node) return 0;
+    if(!node) return false;
     (LIST_TO_PCB(tmp))->status = TASK_READY;
     queue_pushback(&ready_queue, tmp);
-    return 1;
+    return true;
 }
 
 void queue_pushback(list_head* queue, list_node_t* node)

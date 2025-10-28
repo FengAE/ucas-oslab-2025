@@ -2,7 +2,6 @@
 #include <os/sched.h>
 #include <os/list.h>
 #include <atomic.h>
-#include <printk.h>
 
 mutex_lock_t mlocks[LOCK_NUM];
 
@@ -67,7 +66,6 @@ void do_mutex_lock_acquire(int mlock_idx)
     }
     else
     {
-        printk("\n current blocked:%d", current_running->pid);
         do_block(&current_running->list, &mlocks[mlock_idx].block_queue);
     }
 }
@@ -78,8 +76,6 @@ void do_mutex_lock_release(int mlock_idx)
     //mlocks[mlock_idx].lock.status = UNLOCKED;
     if(!do_unblock(&(mlocks[mlock_idx].block_queue))) 
     {
-        mlocks[mlock_idx].lock.status = UNLOCKED;//mlocks[mlock_idx].key = 0;
-        printk("\nunblock:%d", current_running->pid);
+        mlocks[mlock_idx].lock.status = UNLOCKED;
     }
-    //the block_queue is empty means that the duty of this lock is accomplished. set key to 0 to enable another initialize.
 }
