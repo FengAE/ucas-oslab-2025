@@ -25,13 +25,13 @@ list_node_t* prev_running_node = NULL;
 
 void do_scheduler(void)
 {
-    // TODO: [p2-task3] Check sleep queue to wake up PCBs
+//     // TODO: [p2-task3] Check sleep queue to wake up PCBs
 
-    /************************************************************/
-    /* Do not touch this comment. Reserved for future projects. */
-    /************************************************************/
+//     /************************************************************/
+//     /* Do not touch this comment. Reserved for future projects. */
+//     /************************************************************/
 
-    // TODO: [p2-task1] Modify the current_running pointer.
+//     // TODO: [p2-task1] Modify the current_running pointer.
     if(current_running == NULL) return;
     if(current_running->status == TASK_READY)
     {
@@ -67,7 +67,6 @@ void do_block(list_node_t *pcb_node, list_head *block_queue)
     if((LIST_TO_PCB(pcb_node))->status != TASK_BLOCKED)
     {
         // first in: in ready_queue
-        printk("into block\n");
         list_node_t* new_head = queue_popfront(&ready_queue);
         ready_queue = *new_head;
         current_running->status = TASK_BLOCKED;
@@ -82,10 +81,11 @@ void do_block(list_node_t *pcb_node, list_head *block_queue)
 int do_unblock(list_head *queue)
 {
     // TODO: [p2-task2] unblock the `pcb` from the block queue
-    list_node_t* node = queue_popfront(queue);
+    list_node_t* tmp = queue->next;
+    list_node_t* node = queue_popfront(tmp);
     if(!node) return 0;
-    (LIST_TO_PCB(node))->status = TASK_READY;
-    queue_pushback(&ready_queue, node);
+    (LIST_TO_PCB(tmp))->status = TASK_READY;
+    queue_pushback(&ready_queue, tmp);
     return 1;
 }
 
