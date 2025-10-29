@@ -13,15 +13,102 @@
    * Disable the FPU to detect illegal usage of floating point in kernel
    * space.
    */
-  li t0, SR_SUM | SR_FS
+  sd    sp, PCB_USER_SP(tp)   # store user_sp
+  ld    sp, PCB_KERNEL_SP(tp) # change to kernel_sp
+  # create space
+  addi  sp, sp, -OFFSET_SIZE
 
+  sd    t0,   OFFSET_REG_T0(sp)
+  sd    t1,   OFFSET_REG_T1(sp)
+  sd    t2,   OFFSET_REG_T2(sp)
+  sd    zero, OFFSET_REG_ZERO(sp)
+  sd    ra,   OFFSET_REG_RA(sp)   
+  sd    gp,   OFFSET_REG_GP(sp)
+  sd    tp,   OFFSET_REG_TP(sp)
+  sd    s0,   OFFSET_REG_S0(sp)
+  sd    s1,   OFFSET_REG_S1(sp)
+  sd    a0,   OFFSET_REG_A0(sp)
+  sd    a1,   OFFSET_REG_A1(sp)
+  sd    a2,   OFFSET_REG_A2(sp)
+  sd    a3,   OFFSET_REG_A3(sp)
+  sd    a4,   OFFSET_REG_A4(sp)
+  sd    a5,   OFFSET_REG_A5(sp)
+  sd    a6,   OFFSET_REG_A6(sp)
+  sd    a7,   OFFSET_REG_A7(sp)
+  sd    s2,   OFFSET_REG_S2(sp)
+  sd    s3,   OFFSET_REG_S3(sp)
+  sd    s4,   OFFSET_REG_S4(sp)
+  sd    s5,   OFFSET_REG_S5(sp)
+  sd    s6,   OFFSET_REG_S6(sp)
+  sd    s7,   OFFSET_REG_S7(sp)
+  sd    s8,   OFFSET_REG_S8(sp)
+  sd    s9,   OFFSET_REG_S9(sp)
+  sd    s10,  OFFSET_REG_S10(sp)
+  sd    s11,  OFFSET_REG_S11(sp)
+  sd    t3,   OFFSET_REG_T3(sp)       
+  sd    t4,   OFFSET_REG_T4(sp)
+  sd    t5,   OFFSET_REG_T5(sp)
+  sd    t6,   OFFSET_REG_T6(sp)
+
+  li    t0, SR_SUM | SR_FS  # not used?
   /* TODO: [p2-task3] save sstatus, sepc, stval and scause on kernel stack */
-
+  csrr  t1,   CSR_SSTATUS
+  sd    t1,   OFFSET_REG_SSTATUS(sp)
+  csrr  t1,   CSR_SEPC
+  sd    t1,   OFFSET_REG_SEPC(sp)
+  csrr  t1,   CSR_STVAL
+  sd    t1,   OFFSET_REG_SBADADDR(sp)
+  csrr  t1,   CSR_SCAUSE
+  sd    t1,   OFFSET_REG_SCAUSE(sp)
 .endm
 
 .macro RESTORE_CONTEXT
   /* TODO: Restore all general purpose registers and sepc, sstatus */
   /* HINT: Pay attention to sp again! */
+  ld    t0,   OFFSET_REG_SSTATUS(sp)
+  csrw  CSR_SSTATUS, t0
+  ld    t0,   OFFSET_REG_SEPC(sp)
+  csrw  CSR_SEPC, t0
+  ld    t0,   OFFSET_REG_SBADADDR(sp)
+  csrw  CSR_STVAL, t0
+  ld    t0,   OFFSET_REG_SCAUSE(sp)
+  csrw  CSR_SCAUSE, t0
+
+  ld    t0,   OFFSET_REG_T0(sp)
+  ld    t1,   OFFSET_REG_T1(sp)
+  ld    t2,   OFFSET_REG_T2(sp)
+  ld    zero, OFFSET_REG_ZERO(sp)
+  ld    ra,   OFFSET_REG_RA(sp)   
+  ld    gp,   OFFSET_REG_GP(sp)
+  ld    tp,   OFFSET_REG_TP(sp)
+  ld    s0,   OFFSET_REG_S0(sp)
+  ld    s1,   OFFSET_REG_S1(sp)
+  ld    a0,   OFFSET_REG_A0(sp)
+  ld    a1,   OFFSET_REG_A1(sp)
+  ld    a2,   OFFSET_REG_A2(sp)
+  ld    a3,   OFFSET_REG_A3(sp)
+  ld    a4,   OFFSET_REG_A4(sp)
+  ld    a5,   OFFSET_REG_A5(sp)
+  ld    a6,   OFFSET_REG_A6(sp)
+  ld    a7,   OFFSET_REG_A7(sp)
+  ld    s2,   OFFSET_REG_S2(sp)
+  ld    s3,   OFFSET_REG_S3(sp)
+  ld    s4,   OFFSET_REG_S4(sp)
+  ld    s5,   OFFSET_REG_S5(sp)
+  ld    s6,   OFFSET_REG_S6(sp)
+  ld    s7,   OFFSET_REG_S7(sp)
+  ld    s8,   OFFSET_REG_S8(sp)
+  ld    s9,   OFFSET_REG_S9(sp)
+  ld    s10,  OFFSET_REG_S10(sp)
+  ld    s11,  OFFSET_REG_S11(sp)
+  ld    t3,   OFFSET_REG_T3(sp)       
+  ld    t4,   OFFSET_REG_T4(sp)
+  ld    t5,   OFFSET_REG_T5(sp)
+  ld    t6,   OFFSET_REG_T6(sp)
+
+  addi  sp, sp, OFFSET_SIZE
+  sd    sp, PCB_KERNEL_SP(tp) # getback kernel_sp
+  ld    sp, PCB_USER_SP(tp)
 .endm
 
 ENTRY(enable_preempt)
@@ -92,21 +179,26 @@ ENDPROC(switch_to)
 ENTRY(ret_from_exception)
   /* TODO: [p2-task3] restore context via provided macro and return to sepc */
   /* HINT: remember to check your sp, does it point to the right address? */
+  RESTORE_CONTEXT
+  sret
 ENDPROC(ret_from_exception)
 
 ENTRY(exception_handler_entry)
 
   /* TODO: [p2-task3] save context via the provided macro */
-
-
+  SAVE_CONTEXT
   /* TODO: [p2-task3] load ret_from_exception into $ra so that we can return to
    * ret_from_exception when interrupt_help complete.
    */
-
+  la    ra, ret_from_exception
 
   /* TODO: [p2-task3] call interrupt_helper
    * NOTE: don't forget to pass parameters for it.
    */
-
+  mv    a0, sp        
+  csrr  a1, stval     
+  csrr  a2, scause    
+  call  interrupt_helper
+  jr    ra
 
 ENDPROC(exception_handler_entry)

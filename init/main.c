@@ -260,7 +260,7 @@ static void init_pcb_stack(
     // sbadaddr、scause ?
     pt_regs->sepc = entry_point;
     pt_regs->sstatus = (reg_t)SR_SPIE;
-    pt_regs->regs[2] = user_stack;  // sp
+    pt_regs->regs[2] = user_stack;  // user: sp
 
     /* TODO: [p2-task1] set sp to simulate just returning from switch_to
      * NOTE: you should prepare a stack, and push some values to
@@ -271,7 +271,7 @@ static void init_pcb_stack(
     pcb->kernel_sp = (reg_t)pt_switchto; 
     pcb->user_sp = user_stack;
     pt_switchto->regs[0] = (reg_t)entry_point;     // ra        
-    pt_switchto->regs[1] = user_stack;  // sp
+    pt_switchto->regs[1] = (reg_t)pt_switchto;  // kernel: sp
 }
 
 static void init_pcb(void)
@@ -356,7 +356,7 @@ int main(void)
     printk("> [INIT] Lock mechanism initialization succeeded.\n");
 
     // Init interrupt (^_^)
-    init_exception();
+    // init_exception();
     printk("> [INIT] Interrupt processing initialization succeeded.\n");
 
     // Init system call table (0_0)

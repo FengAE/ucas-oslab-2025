@@ -26,7 +26,7 @@ list_node_t* prev_running_node = NULL;
 void do_scheduler(void)
 {
 //     // TODO: [p2-task3] Check sleep queue to wake up PCBs
-
+    // check_sleeping();
 //     /************************************************************/
 //     /* Do not touch this comment. Reserved for future projects. */
 //     /************************************************************/
@@ -51,6 +51,11 @@ void do_scheduler(void)
 
 }
 
+void check_sleeping()
+{
+
+}
+
 void do_sleep(uint32_t sleep_time)
 {
     // TODO: [p2-task3] sleep(seconds)
@@ -58,6 +63,8 @@ void do_sleep(uint32_t sleep_time)
     // 1. block the current_running
     // 2. set the wake up time for the blocked task
     // 3. reschedule because the current_running is blocked.
+    current_running->wakeup_time = sleep_time;
+    do_block(&current_running->list, &sleep_queue);
 }
 
 void do_block(list_node_t *pcb_node, list_head *block_queue)
