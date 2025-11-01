@@ -259,8 +259,9 @@ static void init_pcb_stack(
     memset(pt_regs, 0, sizeof(regs_context_t));
     // sbadaddr、scause ?
     pt_regs->sepc = entry_point;
-    pt_regs->sstatus = (reg_t)SR_SPIE;
+    pt_regs->sstatus = SR_SPIE & ~SR_SPP;   // ensure not modify other bits!!
     pt_regs->regs[2] = user_stack;  // user: sp
+    pt_regs->regs[4] = (reg_t) pcb; // tp 
 
     /* TODO: [p2-task1] set sp to simulate just returning from switch_to
      * NOTE: you should prepare a stack, and push some values to
@@ -270,14 +271,15 @@ static void init_pcb_stack(
         (switchto_context_t *)((ptr_t)pt_regs - sizeof(switchto_context_t));
     pcb->kernel_sp = (reg_t)pt_switchto; 
     pcb->user_sp = user_stack;
-    pt_switchto->regs[0] = (reg_t)entry_point;     // ra        
+    pt_switchto->regs[0] = (reg_t)ret_from_exception;   // ra
+    // pt_switchto->regs[0] = (reg_t)entry_point;     // ra        
     pt_switchto->regs[1] = (reg_t)pt_switchto;  // kernel: sp
 }
 
 static void init_pcb(void)
 {
     /* TODO: [p2-task1] load needed tasks and init their corresponding PCB */
-    char pcb_test_tasks[][16] = {"print1", "print2", "lock1", "lock2", "fly"};
+    char pcb_test_tasks[][16] = {"print1", "print2", "lock1", "lock2", "fly", "sleep", "timer"};
     int pcb_test_num = sizeof(pcb_test_tasks) / sizeof(pcb_test_tasks[0]);
 
     pid0_pcb.pid = 0;
@@ -356,7 +358,7 @@ int main(void)
     printk("> [INIT] Lock mechanism initialization succeeded.\n");
 
     // Init interrupt (^_^)
-    // init_exception();
+    init_exception();
     printk("> [INIT] Interrupt processing initialization succeeded.\n");
 
     // Init system call table (0_0)
@@ -428,7 +430,7 @@ int main(void)
 
         // If you do preemptive scheduling, they're used to enable CSR_SIE and wfi
         // enable_preempt();
-        // asm volatile("wfi");
+        asm volatile("wfi");
     }
 
     return 0;

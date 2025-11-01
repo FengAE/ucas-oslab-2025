@@ -24,7 +24,7 @@
   sd    zero, OFFSET_REG_ZERO(sp)
   sd    ra,   OFFSET_REG_RA(sp)   
   sd    gp,   OFFSET_REG_GP(sp)
-  sd    tp,   OFFSET_REG_TP(sp)
+  ; sd    tp,   OFFSET_REG_TP(sp)
   sd    s0,   OFFSET_REG_S0(sp)
   sd    s1,   OFFSET_REG_S1(sp)
   sd    a0,   OFFSET_REG_A0(sp)
@@ -80,7 +80,7 @@
   ld    zero, OFFSET_REG_ZERO(sp)
   ld    ra,   OFFSET_REG_RA(sp)   
   ld    gp,   OFFSET_REG_GP(sp)
-  ld    tp,   OFFSET_REG_TP(sp)
+  ; ld    tp,   OFFSET_REG_TP(sp)
   ld    s0,   OFFSET_REG_S0(sp)
   ld    s1,   OFFSET_REG_S1(sp)
   ld    a0,   OFFSET_REG_A0(sp)
@@ -190,15 +190,15 @@ ENTRY(exception_handler_entry)
   /* TODO: [p2-task3] load ret_from_exception into $ra so that we can return to
    * ret_from_exception when interrupt_help complete.
    */
-  la    ra, ret_from_exception
+  ; la    ra, ret_from_exception
 
   /* TODO: [p2-task3] call interrupt_helper
    * NOTE: don't forget to pass parameters for it.
    */
   mv    a0, sp        
-  csrr  a1, stval     
-  csrr  a2, scause    
+  csrr  a1, CSR_STVAL
+  csrr  a2, CSR_SCAUSE    
   call  interrupt_helper
-  jr    ra
+  j     ret_from_exception
 
 ENDPROC(exception_handler_entry)

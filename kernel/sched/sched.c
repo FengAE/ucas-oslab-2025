@@ -20,7 +20,6 @@ LIST_HEAD(sleep_queue);
 
 /* global process id */
 pid_t process_id = 1;
-list_node_t* cur_ready = &ready_queue;   // ready_queue cur ptr 
 list_node_t* prev_running_node = NULL;
 
 void do_scheduler(void)
@@ -42,10 +41,12 @@ void do_scheduler(void)
         current_running->status = TASK_READY;
         pcb_t* prev_running = current_running;
         list_node_t* new_head = queue_popfront(&ready_queue);   // remove current_running
-        queue_pushback(new_head, &current_running->list);
+        if(current_running->pid != 0)
+            queue_pushback(new_head, &current_running->list);
         ready_queue = *new_head;
         current_running = LIST_TO_PCB(new_head);
         current_running->status = TASK_RUNNING;
+        // switch_to(prev_running, current_running);
         switch_to(prev_running->kernel_sp, current_running->kernel_sp);
     }
 
@@ -53,7 +54,18 @@ void do_scheduler(void)
 
 void check_sleeping()
 {
-
+    list_node_t* cur = sleep_queue.next;
+    uint64_t cur_time = get_timer();
+    list_node_t* pivort = cur;
+    do
+    {
+        queue_popfront(cur);
+        if((LIST_TO_PCB(cur))->wakeup_time <= cur_time)
+            queue_pushback(&ready_queue, cur);
+        else
+            queue_pushback(&sleep_queue, cur);
+        cur = sleep_queue.next;
+    }while(cur != pivort);
 }
 
 void do_sleep(uint32_t sleep_time)
@@ -63,7 +75,7 @@ void do_sleep(uint32_t sleep_time)
     // 1. block the current_running
     // 2. set the wake up time for the blocked task
     // 3. reschedule because the current_running is blocked.
-    current_running->wakeup_time = sleep_time;
+    current_running->wakeup_time = sleep_time + get_timer();
     do_block(&current_running->list, &sleep_queue);
 }
 
@@ -81,6 +93,7 @@ void do_block(list_node_t *pcb_node, list_head *block_queue)
         pcb_t* prev_running = current_running;
         current_running = LIST_TO_PCB(new_head);
         current_running->status = TASK_RUNNING;
+        // switch_to(prev_running, current_running);
         switch_to(prev_running->kernel_sp, current_running->kernel_sp);
     }
 }
