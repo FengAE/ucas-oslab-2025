@@ -25,7 +25,7 @@ list_node_t* prev_running_node = NULL;
 void do_scheduler(void)
 {
 //     // TODO: [p2-task3] Check sleep queue to wake up PCBs
-    // check_sleeping();
+    check_sleeping();
 //     /************************************************************/
 //     /* Do not touch this comment. Reserved for future projects. */
 //     /************************************************************/
@@ -55,17 +55,22 @@ void do_scheduler(void)
 void check_sleeping()
 {
     list_node_t* cur = sleep_queue.next;
+    int len = 0;
+    while(cur != &sleep_queue)
+    {
+        cur = cur->next;
+        len++;
+    }
     uint64_t cur_time = get_timer();
-    list_node_t* pivort = cur;
-    do
+    cur = sleep_queue.next;
+    for(int i=0; i<len; i++)
     {
         queue_popfront(cur);
         if((LIST_TO_PCB(cur))->wakeup_time <= cur_time)
             queue_pushback(&ready_queue, cur);
         else
             queue_pushback(&sleep_queue, cur);
-        cur = sleep_queue.next;
-    }while(cur != pivort);
+    }
 }
 
 void do_sleep(uint32_t sleep_time)
