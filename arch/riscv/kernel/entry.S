@@ -134,6 +134,20 @@ ENTRY(disable_interrupt)
   jr ra
 ENDPROC(disable_interrupt)
 
+# -------- Only open Supervisor Timer Interrupt -----------
+ENTRY(enable_time_preempt)
+  li t0, SIE_STIE        
+  csrs CSR_SIE, t0
+  jr ra
+ENDPROC(enable_time_preempt)
+
+ENTRY(disable_time_preempt)
+  li t0, SIE_STIE        
+  csrc CSR_SIE, t0
+  jr ra
+ENDPROC(disable_time_preempt)
+# ---------------------------------------------------------
+
 // NOTE: the address of previous pcb in a0
 // NOTE: the address of next pcb in a1
 ENTRY(switch_to)

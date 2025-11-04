@@ -279,7 +279,8 @@ static void init_pcb_stack(
 static void init_pcb(void)
 {
     /* TODO: [p2-task1] load needed tasks and init their corresponding PCB */
-    char pcb_test_tasks[][16] = {"print1", "print2", "lock1", "lock2", "fly", "sleep", "timer"};
+    // char pcb_test_tasks[][16] = {"print1", "print2", "lock1", "lock2", "fly", "sleep", "timer"};
+    char pcb_test_tasks[][16] = {"fly1","fly2","fly3","fly4","fly5"};
     int pcb_test_num = sizeof(pcb_test_tasks) / sizeof(pcb_test_tasks[0]);
 
     pid0_pcb.pid = 0;
@@ -317,6 +318,7 @@ static void init_syscall(void)
     syscall[SYSCALL_LOCK_INIT] = (long (*)())do_mutex_lock_init;
     syscall[SYSCALL_LOCK_ACQ] = (long (*)())do_mutex_lock_acquire;
     syscall[SYSCALL_LOCK_RELEASE] = (long (*)())do_mutex_lock_release;
+    syscall[SYSCALL_SET_SCHED_WORKLOAD] = (long (*)())set_sched_workload;
 }
 /************************************************************/
 
@@ -371,7 +373,7 @@ int main(void)
 
     // TODO: [p2-task4] Setup timer interrupt and enable all interrupt globally
     // NOTE: The function of sstatus.sie is different from sie's
-    
+    set_timer(get_ticks() + TIMER_INTERVAL);
 
     // read_batchfiles();
     // // [p1-task4]: Load tasks by task name and then execute them.
@@ -426,10 +428,12 @@ int main(void)
     while (1)
     {
         // If you do non-preemptive scheduling, it's used to surrender control
-        do_scheduler();
+        // do_scheduler();
 
         // If you do preemptive scheduling, they're used to enable CSR_SIE and wfi
-        // enable_preempt();
+        enable_preempt();
+        
+        // enable_time_preempt(); // We only need enable time interrupt in [p2-task4]
         asm volatile("wfi");
     }
 

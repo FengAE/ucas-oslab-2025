@@ -79,5 +79,7 @@ extern void enable_interrupt(void);
 extern void disable_interrupt(void);
 extern void enable_preempt(void);
 extern void disable_preempt(void);
+extern void enable_time_preempt(void);  // added in [p2-task4]
+extern void disable_time_preempt(void);
 
 #endif
