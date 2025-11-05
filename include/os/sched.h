@@ -34,6 +34,11 @@
 
 #define NUM_MAX_TASK 16
 
+/* Dynamic scheduling constants for [p2-task5]*/
+#define MIN_TIME_SLICE 5         
+#define BASE_TIME_SLICE 20          
+#define MAX_TIME_SLICE 30         
+
 /* used to save register infomation */
 typedef struct regs_context
 {
@@ -87,6 +92,10 @@ typedef struct pcb
 
     ptr_t entry;
 
+    int workload;
+    int priority;
+    int time_slice;
+    int time_slice_remaining;
 } pcb_t;
 
 /* ready queue to run */
@@ -111,6 +120,9 @@ void do_block(list_node_t *, list_head *queue);
 // void do_unblock(list_node_t *);
 int do_unblock(list_node_t *);
 list_node_t* queue_popfront(list_head* queue);
+list_node_t* select_next_task(void);
+void update_scheduler_priorities(void);
+void set_sched_workload(int workload);
 
 /************************************************************/
 /* Do not touch this comment. Reserved for future projects. */

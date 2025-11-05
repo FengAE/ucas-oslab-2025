@@ -298,6 +298,13 @@ static void init_pcb(void)
                         pcb[i].entry, &pcb[i]);
         pcb[i].status = TASK_READY;
         pcb[i].wakeup_time = 0;
+
+        // Initialize dynamic scheduling fields
+        pcb[i].workload = 60;  // Initial workload (LENGTH)
+        pcb[i].priority = 1;
+        pcb[i].time_slice = BASE_TIME_SLICE;
+        pcb[i].time_slice_remaining = pcb[i].time_slice;
+
         queue_pushback(&ready_queue, &(pcb[i].list));
     }
 

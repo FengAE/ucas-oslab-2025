@@ -25,7 +25,7 @@ int main(void)
     {
         int clk = sys_get_tick();
         remain_length = LENGTH;
-        // sys_set_sche_workload(remain_length);
+        sys_set_sche_workload(remain_length);
 
 	sys_move_cursor(CHECK_POINT + 8, j);
 	printf("%c", '|');
@@ -50,7 +50,7 @@ int main(void)
                 // sys_yield();
                 // for (int j=0;j<200000;j++); // wait
                 if (remain_length) remain_length--;
-                // sys_set_sche_workload(remain_length);
+                sys_set_sche_workload(remain_length);
             }
         }
         // sys_yield();

@@ -25,6 +25,13 @@ void handle_irq_timer(regs_context_t *regs, uint64_t stval, uint64_t scause)
     // TODO: [p2-task4] clock interrupt handler.
     // Note: use bios_set_timer to reset the timer and remember to reschedule
     set_timer(get_ticks() + TIMER_INTERVAL);    // Supervisor mode
+
+    if(current_running != NULL && current_running->status == TASK_RUNNING)
+    {
+        if(current_running->time_slice_remaining > 0)
+            current_running->time_slice_remaining--;
+    }
+
     do_scheduler();
 }
 

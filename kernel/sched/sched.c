@@ -31,6 +31,11 @@ void do_scheduler(void)
 //     /************************************************************/
 
 //     // TODO: [p2-task1] Modify the current_running pointer.
+
+    // Update scheduler priorities based on current workloads
+    if(current_running->pid != 0)
+        update_scheduler_priorities();
+
     if(current_running == NULL) return;
     if(current_running->status == TASK_READY)
     {
@@ -38,16 +43,41 @@ void do_scheduler(void)
     }
     else if(current_running->status == TASK_RUNNING)
     {
-        current_running->status = TASK_READY;
-        pcb_t* prev_running = current_running;
-        list_node_t* new_head = queue_popfront(&ready_queue);   // remove current_running
-        if(current_running->pid != 0)
-            queue_pushback(new_head, &current_running->list);
-        ready_queue = *new_head;
-        current_running = LIST_TO_PCB(new_head);
-        current_running->status = TASK_RUNNING;
-        // switch_to(prev_running, current_running);
-        switch_to(prev_running->kernel_sp, current_running->kernel_sp);
+        if(current_running->pid == 0 || current_running->time_slice_remaining>=0)
+        {
+            current_running->status = TASK_READY;
+            pcb_t* prev_running = current_running;
+            list_node_t* new_head = queue_popfront(&ready_queue);   // remove current_running
+            current_running->time_slice_remaining = current_running->time_slice;
+            if(current_running->pid != 0)
+                queue_pushback(new_head, &current_running->list);
+            ready_queue = *new_head;
+            current_running = LIST_TO_PCB(new_head);
+            current_running->status = TASK_RUNNING;
+            // switch_to(prev_running, current_running);
+            switch_to(prev_running->kernel_sp, current_running->kernel_sp);
+        }
+    //     if(current_running->pid == 0 || current_running->time_slice_remaining <=0)
+    //     {
+    //         current_running->status = TASK_READY;
+    //         pcb_t* prev_running = current_running;
+
+    //         // Select next task based on priority
+    //         list_node_t* next_node = select_next_task();
+    //         if(next_node == NULL)   // No ready task, keep running current
+    //         {
+    //             current_running->status = TASK_RUNNING;
+    //             return;
+    //         }
+    //         queue_popfront(&ready_queue);   // remove current_running
+    //         current_running->time_slice_remaining = current_running->time_slice;
+    //         if(current_running->pid != 0)
+    //             queue_pushback(next_node, &current_running->list);
+    //         ready_queue = *next_node;
+    //         current_running = LIST_TO_PCB(next_node);
+    //         current_running->status = TASK_RUNNING;
+    //         switch_to(prev_running->kernel_sp, current_running->kernel_sp);
+    //     }
     }
 
 }
@@ -129,4 +159,114 @@ list_node_t* queue_popfront(list_head* queue)
     Next->prev = queue->prev;
     queue->prev->next = Next;
     return Next;
+}
+
+// ----------- [p2-task5] --------------
+void set_sched_workload(int workload)
+{
+    if(current_running == NULL || current_running->pid == 0)
+        return;
+    current_running->workload = workload;
+}
+
+/**
+ * 简单调度策略：
+ * 1. 计算所有任务的workload平均值
+ * 2. 根据与平均值的差异分配时间片
+ *    workload > 平均值（进度慢）-> 增加时间片
+ *    workload < 平均值（进度快）-> 减少时间片
+ * 
+ * 公式：time_slice = BASE_TIME_SLICE + (workload - avg_workload) * SCALE
+ * 限制在 [MIN_TIME_SLICE, MAX_TIME_SLICE] 范围内
+ */
+#define WORKLOAD_SCALE 1  
+
+void update_scheduler_priorities(void)
+{
+    list_node_t* cur = ready_queue.next;
+    int total_workload = 0;
+    int ready_count = 0;
+
+    while(cur->next != ready_queue.next)
+    {
+        pcb_t* p = LIST_TO_PCB(cur);
+        if(p->status == TASK_READY && p->pid != 0)
+        {
+            total_workload += p->workload;
+            ready_count++;
+        }
+        cur = cur->next;
+    }
+    if(current_running->pid != 0 && current_running->status == TASK_RUNNING)
+    {
+        total_workload += current_running->workload;
+        ready_count++;
+    }
+    if(ready_count == 0)
+        return;
+
+    int avg_workload = total_workload / ready_count;
+    // Distribute time slice
+    cur = ready_queue.next;
+    while(cur->next != ready_queue.next)    
+    {   // Actually judge cur==&ready_queue, due to not use list_node_t** in push and pop
+        pcb_t* p = LIST_TO_PCB(cur);
+        if(p->status == TASK_READY && p->pid != 0)
+        {
+            int deviation = p->workload - avg_workload;
+            // workload larger --> priority larger
+            p->priority = p->workload;
+            int time_slice = BASE_TIME_SLICE + deviation * WORKLOAD_SCALE;
+            if(time_slice < MIN_TIME_SLICE)
+                time_slice = MIN_TIME_SLICE;
+            if(time_slice > MAX_TIME_SLICE)
+                time_slice = MAX_TIME_SLICE;
+            p->time_slice = time_slice;
+
+            if(p->time_slice_remaining > time_slice)
+                p->time_slice_remaining = time_slice;
+        }
+        cur = cur->next;
+    }
+    
+    // refresh current_running
+    if(current_running != NULL &&  current_running->pid != 0)
+    {
+        int deviation = current_running->workload - avg_workload;
+        current_running->priority = current_running->workload;
+        int time_slice = BASE_TIME_SLICE + deviation * WORKLOAD_SCALE;
+        if(time_slice < MIN_TIME_SLICE)
+            time_slice = MIN_TIME_SLICE;
+        if(time_slice > MAX_TIME_SLICE)
+            time_slice = MAX_TIME_SLICE;
+        current_running->time_slice = time_slice;
+    }
+}
+
+/**
+ * Select the next task to run based on priority
+ * Returns the task with highest priority
+ */
+list_node_t* select_next_task(void)
+{
+    if(current_running->pid == 0)
+        return ready_queue.next; 
+    list_node_t* best_task = NULL;
+    int best_priority = -1;
+    
+    list_node_t* cur = ready_queue.next;
+    while(cur->next != ready_queue.next)
+    {
+        pcb_t* p = LIST_TO_PCB(cur);
+        if(p->status == TASK_READY && p->pid != 0)
+        {
+            if(p->priority > best_priority)
+            {
+                best_priority = p->priority;
+                best_task = cur;
+            }
+        }
+        cur = cur->next;
+    }
+    return best_task;
 }
