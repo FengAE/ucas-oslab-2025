@@ -279,8 +279,7 @@ static void init_pcb_stack(
 static void init_pcb(void)
 {
     /* TODO: [p2-task1] load needed tasks and init their corresponding PCB */
-    // char pcb_test_tasks[][16] = {"print1", "print2", "lock1", "lock2", "fly", "sleep", "timer"};
-    char pcb_test_tasks[][16] = {"fly1","fly2","fly3","fly4","fly5"};
+    char pcb_test_tasks[][16] = {"print1", "print2", "lock1", "lock2", "sleep", "timer", "fly1","fly2","fly3","fly4","fly5"};
     int pcb_test_num = sizeof(pcb_test_tasks) / sizeof(pcb_test_tasks[0]);
 
     pid0_pcb.pid = 0;

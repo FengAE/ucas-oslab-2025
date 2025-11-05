@@ -18,7 +18,7 @@ static char plane3[] = {"    //   "};
 
 int main(void)
 {
-    int j = 5;
+    int j = 5+1;
     int remain_length;
 
     while (1)

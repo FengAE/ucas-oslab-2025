@@ -35,8 +35,8 @@
 #define NUM_MAX_TASK 16
 
 /* Dynamic scheduling constants for [p2-task5]*/
-#define MIN_TIME_SLICE 5         
-#define BASE_TIME_SLICE 20          
+#define MIN_TIME_SLICE 1         
+#define BASE_TIME_SLICE 15          
 #define MAX_TIME_SLICE 30         
 
 /* used to save register infomation */
