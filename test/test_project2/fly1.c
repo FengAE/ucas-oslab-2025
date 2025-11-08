@@ -37,6 +37,7 @@ int main(void)
         for (int i = (60 - LENGTH) * CYCLE_PER_MOVE; i < 60 * CYCLE_PER_MOVE; i++)
         {
             /* move */
+            sys_set_sche_workload(remain_length);
             if(i % CYCLE_PER_MOVE == 0)
             {
                 sys_move_cursor(i/CYCLE_PER_MOVE, j + 0);
@@ -62,7 +63,7 @@ int main(void)
         printf("%s", blank);
 
         clk = sys_get_tick() - clk;
-        sys_move_cursor(0, 20);
+        sys_move_cursor(0, 21);
         printf("[fly1] used time per round: %d tick.",clk);
     }
 }

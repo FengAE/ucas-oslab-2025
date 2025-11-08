@@ -7,6 +7,7 @@
 #include <printk.h>
 #include <assert.h>
 #define LIST_TO_PCB(node) (pcb_t*)((char*)node- 16)
+#define LENGTH 60   // used in fly program
 
 pcb_t pcb[NUM_MAX_TASK];
 const ptr_t pid0_stack = INIT_KERNEL_STACK + PAGE_SIZE;
@@ -32,9 +33,9 @@ void do_scheduler(void)
 
 //     // TODO: [p2-task1] Modify the current_running pointer.
 
-    // Update scheduler priorities based on current workloads
+    // Update scheduler slices based on current workloads
     if(current_running->pid != 0)
-        update_scheduler_priorities();
+        update_scheduler_slices();
 
     if(current_running == NULL) return;
     if(current_running->status == TASK_READY)
@@ -43,7 +44,7 @@ void do_scheduler(void)
     }
     else if(current_running->status == TASK_RUNNING)
     {
-        if(current_running->pid == 0 || current_running->time_slice_remaining>=0)
+        if(current_running->pid == 0 || current_running->time_slice_remaining<=0)
         {
             current_running->status = TASK_READY;
             pcb_t* prev_running = current_running;
@@ -57,27 +58,7 @@ void do_scheduler(void)
             // switch_to(prev_running, current_running);
             switch_to(prev_running->kernel_sp, current_running->kernel_sp);
         }
-    //     if(current_running->pid == 0 || current_running->time_slice_remaining <=0)
-    //     {
-    //         current_running->status = TASK_READY;
-    //         pcb_t* prev_running = current_running;
-
-    //         // Select next task based on priority
-    //         list_node_t* next_node = select_next_task();
-    //         if(next_node == NULL)   // No ready task, keep running current
-    //         {
-    //             current_running->status = TASK_RUNNING;
-    //             return;
-    //         }
-    //         queue_popfront(&ready_queue);   // remove current_running
-    //         current_running->time_slice_remaining = current_running->time_slice;
-    //         if(current_running->pid != 0)
-    //             queue_pushback(next_node, &current_running->list);
-    //         ready_queue = *next_node;
-    //         current_running = LIST_TO_PCB(next_node);
-    //         current_running->status = TASK_RUNNING;
-    //         switch_to(prev_running->kernel_sp, current_running->kernel_sp);
-    //     }
+    
     }
 
 }
@@ -161,7 +142,7 @@ list_node_t* queue_popfront(list_head* queue)
     return Next;
 }
 
-// ----------- [p2-task5] --------------
+// ---------------- [p2-task5] -----------------
 void set_sched_workload(int workload)
 {
     if(current_running == NULL || current_running->pid == 0)
@@ -169,104 +150,136 @@ void set_sched_workload(int workload)
     current_running->workload = workload;
 }
 
-/**
- * 简单调度策略：
- * 1. 计算所有任务的workload平均值
- * 2. 根据与平均值的差异分配时间片
- *    workload > 平均值（进度慢）-> 增加时间片
- *    workload < 平均值（进度快）-> 减少时间片
- * 
- * 公式：time_slice = BASE_TIME_SLICE + (workload - avg_workload) * SCALE
- * 限制在 [MIN_TIME_SLICE, MAX_TIME_SLICE] 范围内
- */
-#define WORKLOAD_SCALE 1  
-
-void update_scheduler_priorities(void)
+void update_scheduler_slices(void)
 {
+    pcb_t* tasks[NUM_MAX_TASK];   
+    int v_progress[NUM_MAX_TASK]; // virtual progress
+    int task_count = 0;
     list_node_t* cur = ready_queue.next;
-    int total_workload = 0;
-    int ready_count = 0;
-
-    while(cur->next != ready_queue.next)
+    while (cur->next != ready_queue.next) 
     {
         pcb_t* p = LIST_TO_PCB(cur);
-        if(p->status == TASK_READY && p->pid != 0)
+        if (p->pid != 0)
         {
-            total_workload += p->workload;
-            ready_count++;
+            tasks[task_count] = p;
+            v_progress[task_count] = get_virtual_progress(p); 
+            task_count++;
         }
-        cur = cur->next;
+        cur = cur->next; 
     }
-    if(current_running->pid != 0 && current_running->status == TASK_RUNNING)
+    if (current_running != NULL && current_running->pid != 0)
     {
-        total_workload += current_running->workload;
-        ready_count++;
+        tasks[task_count] = current_running;
+        v_progress[task_count] = get_virtual_progress(current_running); 
+        task_count++;
     }
-    if(ready_count == 0)
-        return;
+    if (task_count == 0) return;
 
-    int avg_workload = total_workload / ready_count;
-    // Distribute time slice
-    cur = ready_queue.next;
-    while(cur->next != ready_queue.next)    
-    {   // Actually judge cur==&ready_queue, due to not use list_node_t** in push and pop
-        pcb_t* p = LIST_TO_PCB(cur);
-        if(p->status == TASK_READY && p->pid != 0)
-        {
-            int deviation = p->workload - avg_workload;
-            // workload larger --> priority larger
-            p->priority = p->workload;
-            int time_slice = BASE_TIME_SLICE + deviation * WORKLOAD_SCALE;
-            if(time_slice < MIN_TIME_SLICE)
-                time_slice = MIN_TIME_SLICE;
-            if(time_slice > MAX_TIME_SLICE)
-                time_slice = MAX_TIME_SLICE;
-            p->time_slice = time_slice;
-
-            if(p->time_slice_remaining > time_slice)
-                p->time_slice_remaining = time_slice;
-        }
-        cur = cur->next;
-    }
+    int non_finished_count = 0; 
+    long sum_progress = 0;
     
-    // refresh current_running
-    if(current_running != NULL &&  current_running->pid != 0)
+    bool some_at_start = false;     
+    bool some_at_finish = false;
+
+    for (int i = 0; i < task_count; i++)
     {
-        int deviation = current_running->workload - avg_workload;
-        current_running->priority = current_running->workload;
-        int time_slice = BASE_TIME_SLICE + deviation * WORKLOAD_SCALE;
-        if(time_slice < MIN_TIME_SLICE)
-            time_slice = MIN_TIME_SLICE;
-        if(time_slice > MAX_TIME_SLICE)
-            time_slice = MAX_TIME_SLICE;
-        current_running->time_slice = time_slice;
+        if (v_progress[i] < 990)
+        {
+            non_finished_count++;
+        }
+        if (v_progress[i] == 0)     // at start point
+            some_at_start = true;
+        if (v_progress[i] >= 990)   // at end point
+            some_at_finish = true;
+
+        sum_progress += v_progress[i];
+    }
+
+    // some at start and some at end: wait
+    bool start_line_barrier_active = (non_finished_count > 0) && some_at_start && some_at_finish;
+
+    if (non_finished_count == 0)    // all finished
+    {
+        for (int i = 0; i < task_count; i++)
+            tasks[i]->time_slice = tasks[i]->time_slice_remaining = T_MIN; 
+    }
+    else
+    {
+        long avg_progress = sum_progress / task_count;
+
+        long sum_weights = 0; 
+        int weights[NUM_MAX_TASK];
+        for (int i = 0; i < task_count; i++)
+        {
+            long delta = avg_progress - v_progress[i]; 
+            weights[i] = (delta > 0) ? (int)delta : 0;
+            sum_weights += weights[i];
+        }
+
+        // distribute time slices
+        for (int i = 0; i < task_count; i++)
+        {
+            int vp = v_progress[i];
+            int time_slice;
+            if (vp >= 990)  // at end: wait
+            {
+                tasks[i]->time_slice = tasks[i]->time_slice_remaining = 0;
+                continue;
+            }
+            else if (start_line_barrier_active && vp == 0)
+            {
+                tasks[i]->time_slice = tasks[i]->time_slice_remaining = 0;
+                continue;
+            }
+            else
+            {
+                if (sum_weights > 0)
+                {
+                    time_slice = (int)(((long long)weights[i] * TOTAL_T + (sum_weights / 2)) / sum_weights);
+                }
+                else
+                {
+                    time_slice = T_MIN;
+                }
+
+                int dynamic_T_min = (vp > avg_progress) ? 1 : T_MIN;
+                if (time_slice < dynamic_T_min)
+                    time_slice = dynamic_T_min;
+            }
+
+            if (time_slice < T_MIN) time_slice = T_MIN;
+            if (time_slice > TOTAL_T) time_slice = TOTAL_T;
+
+            tasks[i]->time_slice = time_slice;
+            if(tasks[i]->time_slice_remaining > time_slice)
+                tasks[i]->time_slice_remaining = time_slice;
+        }
     }
 }
 
-/**
- * Select the next task to run based on priority
- * Returns the task with highest priority
- */
-list_node_t* select_next_task(void)
+int get_virtual_progress(pcb_t* p)
 {
-    if(current_running->pid == 0)
-        return ready_queue.next; 
-    list_node_t* best_task = NULL;
-    int best_priority = -1;
-    
-    list_node_t* cur = ready_queue.next;
-    while(cur->next != ready_queue.next)
+    int cur_pos = LENGTH - p->workload;
+    int cp = p->check_point;
+    if (cur_pos <= 0) return 0;
+    if (cur_pos >= LENGTH) return 1000;
+
+    int v_progress;
+    if (cur_pos < cp)
     {
-        pcb_t* p = LIST_TO_PCB(cur);
-        if(p->status == TASK_READY && p->pid != 0)
-        {
-            if(p->priority > best_priority)
-            {
-                best_priority = p->priority;
-                best_task = cur;
-            }
-        }
-        cur = cur->next;
+        // State 1: progress = (cur_pos / cp) * 500
+        v_progress = (int)((long long)cur_pos * 500 / cp);
     }
-    return best_task;
+    else
+    {
+        // State 2: progress = 500 + [(cur_pos-cp)/(LENGTH-cp)]*500
+        int phase2_numerator = (cur_pos - cp) * 500;
+        int phase2_denominator = LENGTH - cp;
+        // avoid (LENGTH - cp) to be 0
+        if (phase2_denominator <= 0) phase2_denominator = 1;
+        v_progress = 500 + (phase2_numerator / phase2_denominator);
+    }
+
+    if (v_progress > 1000) v_progress = 1000;
+    return v_progress;
 }

@@ -35,9 +35,10 @@
 #define NUM_MAX_TASK 16
 
 /* Dynamic scheduling constants for [p2-task5]*/
-#define MIN_TIME_SLICE 1         
-#define BASE_TIME_SLICE 15          
-#define MAX_TIME_SLICE 30         
+#define TOTAL_T 40        
+#define T_MIN 1            
+#define PROGRESS_SCALE 100 
+#define EPSILON 0            
 
 /* used to save register infomation */
 typedef struct regs_context
@@ -93,7 +94,7 @@ typedef struct pcb
     ptr_t entry;
 
     int workload;
-    int priority;
+    int check_point;
     int time_slice;
     int time_slice_remaining;
 } pcb_t;
@@ -120,9 +121,9 @@ void do_block(list_node_t *, list_head *queue);
 // void do_unblock(list_node_t *);
 int do_unblock(list_node_t *);
 list_node_t* queue_popfront(list_head* queue);
-list_node_t* select_next_task(void);
-void update_scheduler_priorities(void);
+void update_scheduler_slices(void);
 void set_sched_workload(int workload);
+int get_virtual_progress(pcb_t* p);
 
 /************************************************************/
 /* Do not touch this comment. Reserved for future projects. */

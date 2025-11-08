@@ -279,7 +279,8 @@ static void init_pcb_stack(
 static void init_pcb(void)
 {
     /* TODO: [p2-task1] load needed tasks and init their corresponding PCB */
-    char pcb_test_tasks[][16] = {"print1", "print2", "lock1", "lock2", "sleep", "timer", "fly1","fly2","fly3","fly4","fly5"};
+    // char pcb_test_tasks[][16] = {"print1", "print2", "lock1", "lock2", "sleep", "timer"};
+    char pcb_test_tasks[][16] = {"fly1","fly2","fly3","fly4","fly5"};
     int pcb_test_num = sizeof(pcb_test_tasks) / sizeof(pcb_test_tasks[0]);
 
     pid0_pcb.pid = 0;
@@ -299,15 +300,27 @@ static void init_pcb(void)
         pcb[i].wakeup_time = 0;
 
         // Initialize dynamic scheduling fields
-        pcb[i].workload = 60;  // Initial workload (LENGTH)
-        pcb[i].priority = 1;
-        pcb[i].time_slice = BASE_TIME_SLICE;
+        pcb[i].workload = 1;  // Initial workload 
+        pcb[i].time_slice = 1;
         pcb[i].time_slice_remaining = pcb[i].time_slice;
+        int offset = 0;
+        if(strcmp(pcb_test_tasks[i], "fly1") == 0)
+            pcb[i].check_point = 10+offset;
+        else if(strcmp(pcb_test_tasks[i], "fly2") == 0)
+            pcb[i].check_point = 20+offset;
+        else if(strcmp(pcb_test_tasks[i], "fly3") == 0)
+            pcb[i].check_point = 30+offset;
+        else if(strcmp(pcb_test_tasks[i], "fly4") == 0)
+            pcb[i].check_point = 40+offset;
+        else if(strcmp(pcb_test_tasks[i], "fly5") == 0)
+            pcb[i].check_point = 50+offset;
+        else
+            pcb[i].check_point = 70;
 
         queue_pushback(&ready_queue, &(pcb[i].list));
     }
 
-    /* TODO: [p2-task1] remember to initialize 'current_running' */
+    /* TODO: [p2-task1] remember to initialize 'current_runing' */
     current_running = &pid0_pcb;
 }
 
@@ -369,7 +382,7 @@ int main(void)
     init_exception();
     printk("> [INIT] Interrupt processing initialization succeeded.\n");
 
-    // Init system call table (0_0)
+    // Init system call table (0_0)n
     init_syscall();
     printk("> [INIT] System call initialized successfully.\n");
 
