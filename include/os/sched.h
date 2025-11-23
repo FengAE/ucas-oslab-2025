@@ -97,7 +97,7 @@ typedef struct pcb
     uint64_t wakeup_time;
 
     ptr_t entry;
-    char* name;
+    char name[16];
 
     int workload;
     int check_point;

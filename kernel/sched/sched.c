@@ -56,8 +56,8 @@ void do_scheduler(void)
     }
     else if(current_running->status == TASK_RUNNING)
     {
-        if(current_running->pid == 0 || current_running->time_slice_remaining<=0)
-        {
+        // if(current_running->pid == 0 || current_running->time_slice_remaining<=0)
+        // {
             current_running->status = TASK_READY;
             pcb_t* prev_running = current_running;
             list_node_t* new_head = queue_popfront(&ready_queue);   // remove current_running
@@ -69,7 +69,7 @@ void do_scheduler(void)
             current_running->status = TASK_RUNNING;
             // switch_to(prev_running, current_running);
             switch_to(prev_running->kernel_sp, current_running->kernel_sp);
-        }
+        // }
     
     }
 
@@ -140,6 +140,8 @@ bool do_unblock(list_head *queue)
 
 void queue_pushback(list_head* queue, list_node_t* node)
 {
+    if(queue->next == queue->prev)
+        queue->next = node;
     list_node_t* tail = queue->prev;
     tail->next = node, node->next = queue;
     queue->prev = node, node->prev = tail;
@@ -199,7 +201,7 @@ pid_t do_exec(char *name, int argc, char *argv[])
         return -3;   // load failed
     pcb[i].pid = ++pcb_num; 
     pcb[i].status = TASK_READY;
-    pcb[i].name = name;
+    strcpy(pcb[i].name, name);
     pcb[i].lock_id = -1;
     pcb[i].kernel_stack_base = allocKernelPage(1)+PAGE_SIZE;
     pcb[i].user_stack_base = allocUserPage(1)+PAGE_SIZE;
@@ -278,6 +280,7 @@ int do_kill(pid_t pid)
     if(i == NUM_MAX_TASK || pcb[i].status == TASK_EXITED)   return 0;   
     
     list_node_t* new_head = queue_popfront(&pcb[i].list);
+    ready_queue = *new_head;
     pcb[i].status = TASK_EXITED;
     if(pcb[i].pid == (LIST_TO_PCB(&ready_queue))->pid)
 

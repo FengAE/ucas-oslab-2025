@@ -295,7 +295,7 @@ static void init_pcb(void)
         pcb[i].status = TASK_EXITED; // free, exec can use
         pcb[i].check_point = 0;
         pcb[i].workload = 0;
-        pcb[i].name = "\0";
+
     }
     /* TODO: [p2-task1] remember to initialize 'current_runing' */
     current_running = &pid0_pcb;
