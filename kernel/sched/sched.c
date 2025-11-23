@@ -2,10 +2,14 @@
 #include <os/lock.h>
 #include <os/sched.h>
 #include <os/time.h>
+#include <os/task.h>
+#include <os/loader.h>
+#include <os/string.h>
 #include <os/mm.h>
 #include <screen.h>
 #include <printk.h>
 #include <assert.h>
+#include <os/string.h>
 #define LIST_TO_PCB(node) (pcb_t*)((char*)node- 16)
 #define LENGTH 60   // used in fly program
 
@@ -23,6 +27,14 @@ LIST_HEAD(sleep_queue);
 pid_t process_id = 1;
 list_node_t* prev_running_node = NULL;
 
+// pcb_status --> status str
+static const char* status_str[] = {
+    [TASK_BLOCKED] = "BLOCKED",
+    [TASK_RUNNING] = "RUNNING",
+    [TASK_READY] = "READY",
+    [TASK_EXITED] = "EXITED"
+};
+
 void do_scheduler(void)
 {
 //     // TODO: [p2-task3] Check sleep queue to wake up PCBs
@@ -34,8 +46,8 @@ void do_scheduler(void)
 //     // TODO: [p2-task1] Modify the current_running pointer.
 
     // Update scheduler slices based on current workloads
-    if(current_running->pid != 0)
-        update_scheduler_slices();
+    // if(current_running->pid != 0)
+    //     update_scheduler_slices();
 
     if(current_running == NULL) return;
     if(current_running->status == TASK_READY)
@@ -120,7 +132,8 @@ bool do_unblock(list_head *queue)
     list_node_t* tmp = queue->next;
     list_node_t* node = queue_popfront(tmp);
     if(!node) return false;
-    (LIST_TO_PCB(tmp))->status = TASK_READY;
+    pcb_t* cur = LIST_TO_PCB(tmp);
+    cur->status = TASK_READY;
     queue_pushback(&ready_queue, tmp);
     return true;
 }
@@ -132,7 +145,7 @@ void queue_pushback(list_head* queue, list_node_t* node)
     queue->prev = node, node->prev = tail;
 }
 
-// return new_head
+// Remove queue, return new_head
 list_node_t* queue_popfront(list_head* queue)
 {
     if(queue->next == queue)    return NULL;
@@ -140,6 +153,11 @@ list_node_t* queue_popfront(list_head* queue)
     Next->prev = queue->prev;
     queue->prev->next = Next;
     return Next;
+}
+
+void init_list_head(list_head* head)
+{
+    head->next = head->prev = head;
 }
 
 // ---------------- [p2-task5] -----------------
@@ -150,136 +168,125 @@ void set_sched_workload(int workload)
     current_running->workload = workload;
 }
 
-void update_scheduler_slices(void)
+// -------=---------- [p3] ----------------------
+void do_process_show()
 {
-    pcb_t* tasks[NUM_MAX_TASK];   
-    int v_progress[NUM_MAX_TASK]; // virtual progress
-    int task_count = 0;
     list_node_t* cur = ready_queue.next;
-    while (cur->next != ready_queue.next) 
+    int idx = 0;
+    for(int i=0; i<pcb_num; i++)
     {
-        pcb_t* p = LIST_TO_PCB(cur);
-        if (p->pid != 0)
-        {
-            tasks[task_count] = p;
-            v_progress[task_count] = get_virtual_progress(p); 
-            task_count++;
-        }
-        cur = cur->next; 
-    }
-    if (current_running != NULL && current_running->pid != 0)
-    {
-        tasks[task_count] = current_running;
-        v_progress[task_count] = get_virtual_progress(current_running); 
-        task_count++;
-    }
-    if (task_count == 0) return;
-
-    int non_finished_count = 0; 
-    long sum_progress = 0;
-    
-    bool some_at_start = false;     
-    bool some_at_finish = false;
-
-    for (int i = 0; i < task_count; i++)
-    {
-        if (v_progress[i] < 990)
-        {
-            non_finished_count++;
-        }
-        if (v_progress[i] == 0)     // at start point
-            some_at_start = true;
-        if (v_progress[i] >= 990)   // at end point
-            some_at_finish = true;
-
-        sum_progress += v_progress[i];
-    }
-
-    // some at start and some at end: wait
-    bool start_line_barrier_active = (non_finished_count > 0) && some_at_start && some_at_finish;
-
-    if (non_finished_count == 0)    // all finished
-    {
-        for (int i = 0; i < task_count; i++)
-            tasks[i]->time_slice = tasks[i]->time_slice_remaining = T_MIN; 
-    }
-    else
-    {
-        long avg_progress = sum_progress / task_count;
-
-        long sum_weights = 0; 
-        int weights[NUM_MAX_TASK];
-        for (int i = 0; i < task_count; i++)
-        {
-            long delta = avg_progress - v_progress[i]; 
-            weights[i] = (delta > 0) ? (int)delta : 0;
-            sum_weights += weights[i];
-        }
-
-        // distribute time slices
-        for (int i = 0; i < task_count; i++)
-        {
-            int vp = v_progress[i];
-            int time_slice;
-            if (vp >= 990)  // at end: wait
-            {
-                tasks[i]->time_slice = tasks[i]->time_slice_remaining = 0;
-                continue;
-            }
-            else if (start_line_barrier_active && vp == 0)
-            {
-                tasks[i]->time_slice = tasks[i]->time_slice_remaining = 0;
-                continue;
-            }
-            else
-            {
-                if (sum_weights > 0)
-                {
-                    time_slice = (int)(((long long)weights[i] * TOTAL_T + (sum_weights / 2)) / sum_weights);
-                }
-                else
-                {
-                    time_slice = T_MIN;
-                }
-
-                int dynamic_T_min = (vp > avg_progress) ? 1 : T_MIN;
-                if (time_slice < dynamic_T_min)
-                    time_slice = dynamic_T_min;
-            }
-
-            if (time_slice < T_MIN) time_slice = T_MIN;
-            if (time_slice > TOTAL_T) time_slice = TOTAL_T;
-
-            tasks[i]->time_slice = time_slice;
-            if(tasks[i]->time_slice_remaining > time_slice)
-                tasks[i]->time_slice_remaining = time_slice;
-        }
-    }
+        if(pcb[i].status != TASK_EXITED)
+            printk("[%d] PID : %d   STATUS: %s  \tNAME: %s\n", idx++, pcb[i].pid, 
+                        status_str[pcb[i].status], pcb[i].name);
+    }   
 }
 
-int get_virtual_progress(pcb_t* p)
+#define MAX_ARGS 16 
+pid_t do_exec(char *name, int argc, char *argv[])
 {
-    int cur_pos = LENGTH - p->workload;
-    int cp = p->check_point;
-    if (cur_pos <= 0) return 0;
-    if (cur_pos >= LENGTH) return 1000;
-
-    int v_progress;
-    if (cur_pos < cp)
+    int i;
+    for (i = 0; i < NUM_MAX_TASK; i++) 
     {
-        // State 1: progress = (cur_pos / cp) * 500
-        v_progress = (int)((long long)cur_pos * 500 / cp);
+        if(strcmp(pcb[i].name, name) == 0 && pcb[i].status != TASK_EXITED)
+            return -1;   // already exists
+        if (pcb[i].status == TASK_EXITED) break;
     }
-    else
-    {
-        // State 2: progress = 500 + [(cur_pos-cp)/(LENGTH-cp)]*500
-        int phase2_numerator = (cur_pos - cp) * 500;
-        int phase2_denominator = LENGTH - cp;
-        // avoid (LENGTH - cp) to be 0
-        if (phase2_denominator <= 0) phase2_denominator = 1;
-        v_progress = 500 + (phase2_numerator / phase2_denominator);
-    }
+    if (i == NUM_MAX_TASK)  // no free pcb
+        return -2;
 
-    if (v_progress > 1000) v_progress = 1000;
-    return v_progress;
+    pcb[i].entry = load_task_img(name, tasks, tasknum);
+    if(pcb[i].entry == 0)
+        return -3;   // load failed
+    pcb[i].pid = ++pcb_num; 
+    pcb[i].status = TASK_READY;
+    pcb[i].name = name;
+    pcb[i].lock_id = -1;
+    pcb[i].kernel_stack_base = allocKernelPage(1)+PAGE_SIZE;
+    pcb[i].user_stack_base = allocUserPage(1)+PAGE_SIZE;
+    
+    init_pcb_stack(pcb[i].kernel_stack_base, pcb[i].user_stack_base,
+                   pcb[i].entry, &pcb[i]);
+    
+    pcb[i].wakeup_time = 0;
+    pcb[i].time_slice = pcb[i].time_slice_remaining = 1;
+    pcb[i].workload = 1;
+    pcb[i].check_point = 10; 
+    init_list_head(&pcb[i].wait_list);
+
+    ptr_t argv_base = pcb[i].user_stack_base - argc * sizeof(char*);
+    ptr_t current_sp = argv_base;
+    ptr_t *argv_ptr_array = (ptr_t *)argv_base;
+
+    for(int j = 0; j < argc; j++)
+    {
+        int len = strlen(argv[j]) + 1; // include \0
+        current_sp -= len;
+        strcpy((char *)current_sp, argv[j]);
+        argv_ptr_array[j] = current_sp; 
+    }
+    argv_ptr_array[argc] = 0;
+    current_sp = current_sp & ~((ptr_t)0xF);
+
+    regs_context_t *pt_regs =
+        (regs_context_t *)(pcb[i].kernel_stack_base - sizeof(regs_context_t));
+
+    pt_regs->regs[2] = current_sp;       // sp
+    pt_regs->regs[10] = (reg_t)argc;     // a0
+    pt_regs->regs[11] = (reg_t)argv_base;// a1
+    pcb[i].user_sp = current_sp; 
+
+    queue_pushback(&ready_queue, &(pcb[i].list));
+
+    return pcb[i].pid;
+}
+
+int do_waitpid(pid_t pid)
+{
+    int i;
+    for(i=0; i<NUM_MAX_TASK; i++)
+    {
+        if(pcb[i].pid == pid)   break;
+    }
+    if (i == NUM_MAX_TASK || pcb[i].status == TASK_EXITED) 
+        return 0;   // failed
+    do_block(&current_running->list, &pcb[i].wait_list);
+    return pid;
+}
+
+void do_exit(void)
+{
+    while(do_unblock(&current_running->wait_list));
+    current_running->status = TASK_EXITED;
+    list_node_t* new_head = queue_popfront(&ready_queue);   
+    ready_queue = *new_head;
+    
+    // Release lock held by current_running
+    if(current_running->lock_id != -1)
+        do_mutex_lock_release(current_running->lock_id);
+    current_running = LIST_TO_PCB(new_head);
+    do_scheduler();
+}
+
+int do_kill(pid_t pid)
+{
+    if(current_running->pid == pid) // If kill current --> exit
+        do_exit();
+
+    int i=0;
+    for(; i<NUM_MAX_TASK; i++)
+        if(pcb[i].pid == pid)   break;
+    if(i == NUM_MAX_TASK || pcb[i].status == TASK_EXITED)   return 0;   
+    
+    list_node_t* new_head = queue_popfront(&pcb[i].list);
+    pcb[i].status = TASK_EXITED;
+    if(pcb[i].pid == (LIST_TO_PCB(&ready_queue))->pid)
+
+    if(pcb[i].lock_id != -1)
+        do_mutex_lock_release(pcb[i].lock_id);
+    return 1;
+}
+
+pid_t do_getpid()
+{
+    return current_running->pid;
 }

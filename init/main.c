@@ -9,6 +9,7 @@
 #include <os/task.h>
 #include <os/string.h>
 #include <os/mm.h>
+#include <os/list.h>
 #include <os/time.h>
 #include <sys/syscall.h>
 #include <screen.h>
@@ -245,7 +246,7 @@ void list_files()
 }
 
 /************************************************************/
-static void init_pcb_stack(
+void init_pcb_stack(
     ptr_t kernel_stack, ptr_t user_stack, ptr_t entry_point,
     pcb_t *pcb)
 {
@@ -276,13 +277,11 @@ static void init_pcb_stack(
     pt_switchto->regs[1] = (reg_t)pt_switchto;  // kernel: sp
 }
 
+int pcb_num;
 static void init_pcb(void)
 {
+    pcb_num = 0;
     /* TODO: [p2-task1] load needed tasks and init their corresponding PCB */
-    char pcb_test_tasks[][16] = {"print1", "print2", "lock1", "lock2", "sleep", "timer", "fly"};
-    // char pcb_test_tasks[][16] = {"fly1","fly2","fly3","fly4","fly5"};
-    int pcb_test_num = sizeof(pcb_test_tasks) / sizeof(pcb_test_tasks[0]);
-
     pid0_pcb.pid = 0;
     pid0_pcb.status = TASK_RUNNING;
     pid0_pcb.kernel_sp = allocKernelPage(1);
@@ -290,38 +289,21 @@ static void init_pcb(void)
     pid0_pcb.cursor_x = pid0_pcb.cursor_y = 0;
     init_pcb_stack(pid0_pcb.kernel_sp, pid0_pcb.user_sp, 0, &pid0_pcb);
 
-    for(int i=0; i<pcb_test_num; i++)
+    for (int i = 0; i < NUM_MAX_TASK; i++) 
     {
-        pcb[i].pid = i+1;
-        pcb[i].entry = load_task_img(pcb_test_tasks[i], tasks, tasknum);
-        init_pcb_stack(allocKernelPage(1), allocUserPage(1),
-                        pcb[i].entry, &pcb[i]);
-        pcb[i].status = TASK_READY;
-        pcb[i].wakeup_time = 0;
-
-        // Initialize dynamic scheduling fields
-        pcb[i].workload = 1;  // Initial workload 
-        pcb[i].time_slice = 1;
-        pcb[i].time_slice_remaining = pcb[i].time_slice;
-        int offset = 0;
-        if(strcmp(pcb_test_tasks[i], "fly1") == 0)
-            pcb[i].check_point = 10+offset;
-        else if(strcmp(pcb_test_tasks[i], "fly2") == 0)
-            pcb[i].check_point = 20+offset;
-        else if(strcmp(pcb_test_tasks[i], "fly3") == 0)
-            pcb[i].check_point = 30+offset;
-        else if(strcmp(pcb_test_tasks[i], "fly4") == 0)
-            pcb[i].check_point = 40+offset;
-        else if(strcmp(pcb_test_tasks[i], "fly5") == 0)
-            pcb[i].check_point = 50+offset;
-        else
-            pcb[i].check_point = 70;
-
-        queue_pushback(&ready_queue, &(pcb[i].list));
+        pcb[i].pid = 0; 
+        pcb[i].status = TASK_EXITED; // free, exec can use
+        pcb[i].check_point = 0;
+        pcb[i].workload = 0;
+        pcb[i].name = "\0";
     }
-
     /* TODO: [p2-task1] remember to initialize 'current_runing' */
     current_running = &pid0_pcb;
+
+    char* argv[1] = {"shell"};
+    pid_t shell_pid = do_exec("shell", 1, argv);
+    // char* argv1[1] = {"waitpid"};
+    // do_exec("waitpid", 1, argv1);
 }
 
 static void init_syscall(void)
@@ -338,6 +320,14 @@ static void init_syscall(void)
     syscall[SYSCALL_LOCK_ACQ] = (long (*)())do_mutex_lock_acquire;
     syscall[SYSCALL_LOCK_RELEASE] = (long (*)())do_mutex_lock_release;
     syscall[SYSCALL_SET_SCHED_WORKLOAD] = (long (*)())set_sched_workload;
+    syscall[SYSCALL_EXEC] = (long (*)())do_exec;
+    syscall[SYSCALL_EXIT] = (long (*)())do_exit;
+    syscall[SYSCALL_KILL] = (long (*)())do_kill;
+    syscall[SYSCALL_WAITPID] = (long (*)())do_waitpid;
+    syscall[SYSCALL_PS] = (long (*)())do_process_show;
+    syscall[SYSCALL_GETPID] = (long (*)())do_getpid;
+    syscall[SYSCALL_CLEAR] = (long (*)())screen_clear;
+    syscall[SYSCALL_READCH] = (long (*)())port_read_ch;
 }
 /************************************************************/
 
@@ -388,60 +378,17 @@ int main(void)
 
     // Init screen (QAQ)
     init_screen();   
-    printk("> [INIT] SCREEN initialization succeeded.\n");
+    // printk("> [INIT] SCREEN initialization succeeded.\n");
+
+    // printk("tasknum: %d\n", tasknum);
+    // for(int i=0; i<tasknum; i++)
+    // {
+    //     printk("%s\n", tasks[i].name);
+    // }
 
     // TODO: [p2-task4] Setup timer interrupt and enable all interrupt globally
     // NOTE: The function of sstatus.sie is different from sie's
     set_timer(get_ticks() + TIMER_INTERVAL);
-
-    // read_batchfiles();
-    // // [p1-task4]: Load tasks by task name and then execute them.
-    // char name[16];
-    // name[0] = '\0';
-    // int name_ptr = 0, ch;
-    // while(1)
-    // {
-    //     while((ch = bios_getchar()) == -1);
-    //     if(ch == '\r' || ch == '\n')
-    //     {
-    //         bios_putstr("\n\r");
-    //         if(name_ptr != 0)
-    //         {
-    //             name[name_ptr] = '\0';
-    //             if(strcmp(name, "sched") == 0)
-    //                 do_scheduler();
-    //             else if(strcmp(name, "load_bat") == 0)
-    //                 load_batchfiles();
-    //             else if(strcmp(name, "do_bat") == 0)
-    //                 excute_batchfiles(tasks, tasknum);
-    //             else if(strcmp(name, "ls") == 0)
-    //                 list_files();
-    //             else 
-    //                 excute_by_name(name, tasks, tasknum, false);
-    //         }
-    //         else
-    //             bios_putstr("Input empty!\n\r");
-    //         name_ptr = 0;
-    //     }
-    //     else 
-    //     {
-    //         if(ch == '\b' || ch == 127)
-    //         {
-    //             Backspace(&name_ptr);
-    //             continue;
-    //         }
-    //         bios_putchar(ch);
-    //         if(name_ptr >= 16)
-    //         {
-    //             bios_putstr("\n\r");
-    //             bios_putstr("input task name too long\n\r");
-    //             name_ptr = 0;
-    //         }
-    //         else
-    //             name[name_ptr++] = ch;
-    //     }      
-    // }
-
 
     // Infinite while loop, where CPU stays in a low-power state (QAQQQQQQQQQQQ)
     while (1)
@@ -458,3 +405,4 @@ int main(void)
 
     return 0;
 }
+

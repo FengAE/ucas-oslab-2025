@@ -4,7 +4,7 @@
 #include <stdint.h>
 typedef int32_t pid_t;
 
-
+void sys_clear(int line1, int line2);
 void sys_sleep(uint32_t time);
 void sys_yield(void);
 void sys_write(char *buff);
@@ -24,9 +24,9 @@ int  sys_getchar(void);
 
 /* TODO: [P3 task1] exec, exit, kill waitpid */
 // S-core
-pid_t  sys_exec(int id, int argc, uint64_t arg0, uint64_t arg1, uint64_t arg2);
+// pid_t  sys_exec(int id, int argc, uint64_t arg0, uint64_t arg1, uint64_t arg2);
 // A/C-core
-// pid_t  sys_exec(char *name, int argc, char **argv);
+pid_t  sys_exec(char *name, int argc, char **argv);
 
 void sys_exit(void);
 int  sys_kill(pid_t pid);
@@ -54,3 +54,4 @@ int sys_mbox_recv(int mbox_idx, void *msg, int msg_length);
 /************************************************************/
 
 #endif
+

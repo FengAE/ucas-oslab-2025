@@ -29,7 +29,7 @@
 #define INCLUDE_LOCK_H_
 
 #include <os/list.h>
-
+#include <os/sched.h>
 #define LOCK_NUM 16
 
 typedef enum {
@@ -47,7 +47,10 @@ typedef struct mutex_lock
     spin_lock_t lock;
     list_head block_queue;
     int key;
+    pcb_t* held_pcb;
 } mutex_lock_t;
+
+extern mutex_lock_t mlocks[LOCK_NUM];
 
 void init_locks(void);
 
@@ -117,3 +120,4 @@ int do_mbox_recv(int mbox_idx, void * msg, int msg_length);
 /************************************************************/
 
 #endif
+

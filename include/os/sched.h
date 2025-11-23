@@ -67,6 +67,7 @@ typedef enum {
     TASK_EXITED,
 } task_status_t;
 
+
 /* Process Control Block */
 typedef struct pcb
 {
@@ -74,12 +75,13 @@ typedef struct pcb
     // NOTE: this order must be preserved, which is defined in regs.h!!
     reg_t kernel_sp;
     reg_t user_sp;
-    ptr_t kernel_stack_base;
-    ptr_t user_stack_base;
 
     /* previous, next pointer */
     list_node_t list;
     list_head wait_list;
+
+    ptr_t kernel_stack_base;
+    ptr_t user_stack_base;
 
     /* process id */
     pid_t pid;
@@ -95,11 +97,13 @@ typedef struct pcb
     uint64_t wakeup_time;
 
     ptr_t entry;
+    char* name;
 
     int workload;
     int check_point;
     int time_slice;
     int time_slice_remaining;
+    int lock_id;
 } pcb_t;
 
 /* ready queue to run */
@@ -107,6 +111,7 @@ extern list_head ready_queue;
 
 /* sleep queue to be blocked in */
 extern list_head sleep_queue;
+extern int pcb_num;
 
 /* current running task PCB */
 register pcb_t * current_running asm("tp");
@@ -117,6 +122,9 @@ extern pcb_t pid0_pcb;
 extern const ptr_t pid0_stack;
 
 extern void switch_to(reg_t prev, reg_t next);
+extern void init_pcb_stack(
+    ptr_t kernel_stack, ptr_t user_stack, ptr_t entry_point,
+    pcb_t *pcb);
 void do_scheduler(void);
 void do_sleep(uint32_t);
 
@@ -143,3 +151,4 @@ extern pid_t do_getpid();
 /************************************************************/
 
 #endif
+

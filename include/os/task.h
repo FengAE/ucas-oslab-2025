@@ -28,5 +28,5 @@ typedef struct {
 } batch_file_t;
 
 extern task_info_t tasks[TASK_MAXNUM];
-
+extern int tasknum;
 #endif

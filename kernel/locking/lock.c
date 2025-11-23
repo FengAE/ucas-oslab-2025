@@ -62,6 +62,7 @@ void do_mutex_lock_acquire(int mlock_idx)
     /* TODO: [p2-task2] acquire mutex lock */
     if(mlocks[mlock_idx].lock.status == UNLOCKED)
     {
+        current_running->lock_id = mlock_idx;
         mlocks[mlock_idx].lock.status = LOCKED;
     }
     else
