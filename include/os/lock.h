@@ -47,7 +47,6 @@ typedef struct mutex_lock
     spin_lock_t lock;
     list_head block_queue;
     int key;
-    pcb_t* held_pcb;
 } mutex_lock_t;
 
 extern mutex_lock_t mlocks[LOCK_NUM];

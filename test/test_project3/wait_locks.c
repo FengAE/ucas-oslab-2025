@@ -40,6 +40,6 @@ int main(int argc, char *argv[])
     printf("> [TASK] I have acquired mutex lock2 (handle=%d).  ", handle2);
 
     sys_mutex_release(handle2);
-
+    sys_exit();
     return 0;
 }

@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
     // Finish waitpid(pid2)
     sys_move_cursor(0, print_location);
     printf("> [TASK] Task (pid=%d) has exited.                ", pid2);
-
+    sys_exit();
     return 0;
 }
 #endif

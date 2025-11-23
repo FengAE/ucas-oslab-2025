@@ -124,7 +124,7 @@ void do_block(list_node_t *pcb_node, list_head *queue)
 
 int do_unblock(list_node_t *node)
 {
-    list_node_t* cur = queue_popback((list_head*)node);
+    list_node_t* cur = queue_popback(node);
     if(!cur) return 0;
     pcb_t* prev_running = LIST_TO_PCB(cur);
     prev_running->status = TASK_READY;
@@ -150,7 +150,8 @@ int do_waitpid(pid_t pid)
         if(pid == pcb[i].pid) break;    
     if(i == NUM_MAX_TASK || pcb[i].status == TASK_EXITED) 
         return 0;   // already exited
-    queue_pushfront(&(current_running->list), &(pcb[i].wait_list));
+    if(current_running->status == TASK_RUNNING)
+        queue_pushfront(&(current_running->list), &(pcb[i].wait_list));
 
     if(ready_queue.next == &ready_queue) return 0;
     pcb_t* next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
@@ -167,14 +168,14 @@ int do_waitpid(pid_t pid)
 void do_exit()
 {
     current_running->status = TASK_EXITED;
-    current_running->pid = -1; 
     
     // release locks
     if (current_running->lock_id >= 0) 
         do_mutex_lock_release(current_running->lock_id);
-
+        
     while(current_running->wait_list.next != &(current_running->wait_list))
         do_unblock((list_node_t*)&(current_running->wait_list));
+    current_running->lock_id = -1;
     do_scheduler();
 }
 
@@ -190,13 +191,14 @@ int do_kill(pid_t pid)
         if(pcb[i].pid == pid) break;
     if(i == NUM_MAX_TASK || pcb[i].status == TASK_EXITED) 
         return 0;
-    
+    pcb[i].list.next->prev = pcb[i].list.prev;
+    pcb[i].list.prev->next = pcb[i].list.next;
     pcb[i].status = TASK_EXITED;
-    pcb[i].pid = -1;
-    while(pcb[i].wait_list.next != &(pcb[i].wait_list))
-        do_unblock((list_node_t*)&(pcb[i].wait_list));
     if(pcb[i].lock_id >= 0)
         do_mutex_lock_release(pcb[i].lock_id);
+    while(do_unblock((list_node_t*)&(pcb[i].wait_list)));
+        
+    pcb[i].lock_id = -1;
     return 1;
 }
 

@@ -33,6 +33,6 @@ int main(int argc, char *argv[])
     // If timeup, release two mutex locks
     sys_mutex_release(handle1);
     sys_mutex_release(handle2);
-
+    sys_exit();
     return 0;
 }
