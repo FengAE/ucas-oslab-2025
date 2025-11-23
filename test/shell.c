@@ -104,14 +104,15 @@ int main(void)
 
                         argv[argc] = NULL; 
                         if (argc > 1) {
-                            pid_t pid = sys_exec("waitpid", 1, &argv[1]); 
-                            if(pid == -1)    printf("Error: no such excutable program: \"%s\"\n", argv[1]);
+                            pid_t pid = sys_exec(argv[1], argc, argv); 
+                            if(pid == -1)    printf("Error: task alreay exits: \"%s\"\n", argv[1]);
                             else if(pid == -2)  printf("Error: no free pcb\n");
-                            else if(pid == -3)  printf("Error: load task image failed\n");
+                            else if(pid == -3)  printf("Error: load task image failed: \"%s\"\n", argv[1]);
                             else    printf("exec pid: [%d], successfully!\n", pid);
-                            // else if (strcmp(argv[argc-1], "&") != 0) {
-                            //     sys_waitpid(pid);
-                            // }
+                            
+                            if(!(argc == 3 && strcmp(argv[argc-1], "&") == 0))
+                                sys_waitpid(pid);
+
                         } else 
                             printf("Error: exec needs parameters\n");
                     }
@@ -126,7 +127,7 @@ int main(void)
                             printf("Error: expect format: kill id\n");
                         else
                         {
-                            printf("kill pid: [%d]", id);
+                            printf("kill pid: [%d]\n", id);
                             sys_kill(id);
                         }
                     }

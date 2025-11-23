@@ -51,9 +51,8 @@ typedef list_node_t list_head;
 #define LIST_HEAD(name) struct list_node name = {&(name), &(name)}
 
 /* TODO: [p2-task1] implement your own list API */
-void queue_pushback(list_head* queue, list_node_t* node);
-bool queue_empty(list_head* queue);
-void move_next(list_head* queue);
-void queue_remove(list_node_t* node);
+list_node_t* queue_popback(list_head* queue);
+void queue_pushfront(list_node_t* t, list_head* queue);
+void init_list_head(list_head* head);
 
 #endif

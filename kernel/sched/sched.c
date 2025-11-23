@@ -9,171 +9,131 @@
 #include <screen.h>
 #include <printk.h>
 #include <assert.h>
-#include <os/string.h>
-#define LIST_TO_PCB(node) (pcb_t*)((char*)node- 16)
-#define LENGTH 60   // used in fly program
 
-pcb_t pcb[NUM_MAX_TASK];
+pcb_t pcb[NUM_MAX_TASK]; 
 const ptr_t pid0_stack = INIT_KERNEL_STACK + PAGE_SIZE;
 pcb_t pid0_pcb = {
     .pid = 0,
     .kernel_sp = (ptr_t)pid0_stack,
-    .user_sp = (ptr_t)pid0_stack
+    .user_sp = (ptr_t)pid0_stack,
+    .status = TASK_RUNNING,
+    .name = "IDLE"
 };
+// based on sched.h
+#define OFFSETOF_LIST 16
+#define LIST_TO_PCB(node) (pcb_t*)((char*)node - OFFSETOF_LIST)
+
 LIST_HEAD(ready_queue);
 LIST_HEAD(sleep_queue);
 
-/* global process id */
-pid_t process_id = 1;
-list_node_t* prev_running_node = NULL;
-
-// pcb_status --> status str
 static const char* status_str[] = {
     [TASK_BLOCKED] = "BLOCKED",
     [TASK_RUNNING] = "RUNNING",
-    [TASK_READY] = "READY",
-    [TASK_EXITED] = "EXITED"
+    [TASK_READY]   = "READY",
+    [TASK_EXITED]  = "EXITED"
 };
 
-void do_scheduler(void)
-{
-//     // TODO: [p2-task3] Check sleep queue to wake up PCBs
-    check_sleeping();
-//     /************************************************************/
-//     /* Do not touch this comment. Reserved for future projects. */
-//     /************************************************************/
+void queue_pushfront(list_node_t* t, list_head* queue){
+    list_node_t* origfst = queue->next;
+    queue->next = t;
+    t->prev = queue;
+    t->next = origfst;
+    origfst->prev = t;
+}
 
-//     // TODO: [p2-task1] Modify the current_running pointer.
-
-    // Update scheduler slices based on current workloads
-    // if(current_running->pid != 0)
-    //     update_scheduler_slices();
-
-    if(current_running == NULL) return;
-    if(current_running->status == TASK_READY)
-    {
-        current_running->status = TASK_RUNNING;
+list_node_t* queue_popback(list_head* queue){
+    list_node_t* rear = queue->prev;
+    if(rear == queue){
+        return NULL;
     }
-    else if(current_running->status == TASK_RUNNING)
-    {
-        // if(current_running->pid == 0 || current_running->time_slice_remaining<=0)
-        // {
-            current_running->status = TASK_READY;
-            pcb_t* prev_running = current_running;
-            list_node_t* new_head = queue_popfront(&ready_queue);   // remove current_running
-            current_running->time_slice_remaining = current_running->time_slice;
-            if(current_running->pid != 0)
-                queue_pushback(new_head, &current_running->list);
-            ready_queue = *new_head;
-            current_running = LIST_TO_PCB(new_head);
-            current_running->status = TASK_RUNNING;
-            // switch_to(prev_running, current_running);
-            switch_to(prev_running->kernel_sp, current_running->kernel_sp);
-        // }
-    
-    }
-
+    rear->prev->next = rear->next;
+    rear->next->prev = rear->prev;
+    return rear;
 }
 
 void check_sleeping()
 {
     list_node_t* cur = sleep_queue.next;
-    int len = 0;
-    while(cur != &sleep_queue)
-    {
-        cur = cur->next;
-        len++;
-    }
+    list_node_t* next;
     uint64_t cur_time = get_timer();
-    cur = sleep_queue.next;
-    for(int i=0; i<len; i++)
+
+    while (cur != &sleep_queue) 
     {
-        queue_popfront(cur);
-        if((LIST_TO_PCB(cur))->wakeup_time <= cur_time)
-            queue_pushback(&ready_queue, cur);
-        else
-            queue_pushback(&sleep_queue, cur);
+        next = cur->next;
+        pcb_t *task = LIST_TO_PCB(cur);
+        if (task->wakeup_time <= cur_time) 
+        {   // remove by hand
+            cur->prev->next = cur->next;
+            cur->next->prev = cur->prev;
+            
+            task->status = TASK_READY;
+            queue_pushfront(cur, &ready_queue);
+        }
+        cur = next;
     }
+}
+
+void do_scheduler(void)
+{
+    check_sleeping();
+    // pcb empty
+    if(ready_queue.next == &ready_queue) return;
+    pcb_t* next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
+    if(next_pcb->status != TASK_EXITED)
+        next_pcb->status = TASK_RUNNING;
+
+    if(current_running->status == TASK_RUNNING)
+        queue_pushfront(&(current_running->list), &ready_queue);  
+    if(current_running->status != TASK_EXITED) 
+        current_running->status = TASK_READY;
+    pcb_t* prev_running = current_running;
+    current_running = next_pcb; 
+
+    if(prev_running != current_running && current_running->status != TASK_EXITED) 
+        switch_to(prev_running->kernel_sp, current_running->kernel_sp);
+
 }
 
 void do_sleep(uint32_t sleep_time)
 {
-    // TODO: [p2-task3] sleep(seconds)
-    // NOTE: you can assume: 1 second = 1 `timebase` ticks
-    // 1. block the current_running
-    // 2. set the wake up time for the blocked task
-    // 3. reschedule because the current_running is blocked.
-    current_running->wakeup_time = sleep_time + get_timer();
-    do_block(&current_running->list, &sleep_queue);
+    if(ready_queue.next == &ready_queue) return;
+    pcb_t* next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
+    pcb_t* prev_running = current_running;
+    uint64_t current_time = get_timer();
+
+    prev_running->wakeup_time = current_time + (uint64_t)sleep_time;
+    queue_pushfront(&(current_running->list), &sleep_queue);
+    current_running->status = TASK_BLOCKED;
+    current_running = next_pcb;
+    next_pcb->status = TASK_RUNNING;
+    switch_to(prev_running->kernel_sp, next_pcb->kernel_sp);
 }
 
-void do_block(list_node_t *pcb_node, list_head *block_queue)
+void do_block(list_node_t *pcb_node, list_head *queue)
 {
-    // TODO: [p2-task2] block the pcb task into the block queue
-    // USE: do_block(&current_running->list, ...);
-    if((LIST_TO_PCB(pcb_node))->status != TASK_BLOCKED)
-    {
-        // first in: in ready_queue
-        list_node_t* new_head = queue_popfront(&ready_queue);
-        ready_queue = *new_head;
-        current_running->status = TASK_BLOCKED;
-        queue_pushback(block_queue, &current_running->list);
-        pcb_t* prev_running = current_running;
-        current_running = LIST_TO_PCB(new_head);
-        current_running->status = TASK_RUNNING;
-        // switch_to(prev_running, current_running);
-        switch_to(prev_running->kernel_sp, current_running->kernel_sp);
-    }
+    if(ready_queue.next == &ready_queue) return;
+    pcb_t* next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
+    next_pcb->status = TASK_RUNNING;
+
+    queue_pushfront(pcb_node, queue);
+    current_running->status = TASK_BLOCKED; 
+    pcb_t* prev_running = current_running;
+    current_running = next_pcb;
+    switch_to(prev_running->kernel_sp, next_pcb->kernel_sp);
 }
 
-bool do_unblock(list_head *queue)
+int do_unblock(list_node_t *node)
 {
-    // TODO: [p2-task2] unblock the `pcb` from the block queue
-    list_node_t* tmp = queue->next;
-    list_node_t* node = queue_popfront(tmp);
-    if(!node) return false;
-    pcb_t* cur = LIST_TO_PCB(tmp);
-    cur->status = TASK_READY;
-    queue_pushback(&ready_queue, tmp);
-    return true;
+    list_node_t* cur = queue_popback((list_head*)node);
+    if(!cur) return 0;
+    pcb_t* prev_running = LIST_TO_PCB(cur);
+    prev_running->status = TASK_READY;
+    queue_pushfront(cur, &ready_queue);
+    return 1;
 }
 
-void queue_pushback(list_head* queue, list_node_t* node)
+void do_process_show(int startline)
 {
-    if(queue->next == queue->prev)
-        queue->next = node;
-    list_node_t* tail = queue->prev;
-    tail->next = node, node->next = queue;
-    queue->prev = node, node->prev = tail;
-}
-
-// Remove queue, return new_head
-list_node_t* queue_popfront(list_head* queue)
-{
-    if(queue->next == queue)    return NULL;
-    list_node_t* Next = queue->next;
-    Next->prev = queue->prev;
-    queue->prev->next = Next;
-    return Next;
-}
-
-void init_list_head(list_head* head)
-{
-    head->next = head->prev = head;
-}
-
-// ---------------- [p2-task5] -----------------
-void set_sched_workload(int workload)
-{
-    if(current_running == NULL || current_running->pid == 0)
-        return;
-    current_running->workload = workload;
-}
-
-// -------=---------- [p3] ----------------------
-void do_process_show()
-{
-    list_node_t* cur = ready_queue.next;
     int idx = 0;
     for(int i=0; i<pcb_num; i++)
     {
@@ -183,108 +143,59 @@ void do_process_show()
     }   
 }
 
-#define MAX_ARGS 16 
-pid_t do_exec(char *name, int argc, char *argv[])
-{
-    int i;
-    for (i = 0; i < NUM_MAX_TASK; i++) 
-    {
-        if(strcmp(pcb[i].name, name) == 0 && pcb[i].status != TASK_EXITED)
-            return -1;   // already exists
-        if (pcb[i].status == TASK_EXITED) break;
-    }
-    if (i == NUM_MAX_TASK)  // no free pcb
-        return -2;
-
-    pcb[i].entry = load_task_img(name, tasks, tasknum);
-    if(pcb[i].entry == 0)
-        return -3;   // load failed
-    pcb[i].pid = ++pcb_num; 
-    pcb[i].status = TASK_READY;
-    strcpy(pcb[i].name, name);
-    pcb[i].lock_id = -1;
-    pcb[i].kernel_stack_base = allocKernelPage(1)+PAGE_SIZE;
-    pcb[i].user_stack_base = allocUserPage(1)+PAGE_SIZE;
-    
-    init_pcb_stack(pcb[i].kernel_stack_base, pcb[i].user_stack_base,
-                   pcb[i].entry, &pcb[i]);
-    
-    pcb[i].wakeup_time = 0;
-    pcb[i].time_slice = pcb[i].time_slice_remaining = 1;
-    pcb[i].workload = 1;
-    pcb[i].check_point = 10; 
-    init_list_head(&pcb[i].wait_list);
-
-    ptr_t argv_base = pcb[i].user_stack_base - argc * sizeof(char*);
-    ptr_t current_sp = argv_base;
-    ptr_t *argv_ptr_array = (ptr_t *)argv_base;
-
-    for(int j = 0; j < argc; j++)
-    {
-        int len = strlen(argv[j]) + 1; // include \0
-        current_sp -= len;
-        strcpy((char *)current_sp, argv[j]);
-        argv_ptr_array[j] = current_sp; 
-    }
-    argv_ptr_array[argc] = 0;
-    current_sp = current_sp & ~((ptr_t)0xF);
-
-    regs_context_t *pt_regs =
-        (regs_context_t *)(pcb[i].kernel_stack_base - sizeof(regs_context_t));
-
-    pt_regs->regs[2] = current_sp;       // sp
-    pt_regs->regs[10] = (reg_t)argc;     // a0
-    pt_regs->regs[11] = (reg_t)argv_base;// a1
-    pcb[i].user_sp = current_sp; 
-
-    queue_pushback(&ready_queue, &(pcb[i].list));
-
-    return pcb[i].pid;
-}
-
 int do_waitpid(pid_t pid)
 {
     int i;
-    for(i=0; i<NUM_MAX_TASK; i++)
-    {
-        if(pcb[i].pid == pid)   break;
-    }
-    if (i == NUM_MAX_TASK || pcb[i].status == TASK_EXITED) 
-        return 0;   // failed
-    do_block(&current_running->list, &pcb[i].wait_list);
+    for(i = 0; i < NUM_MAX_TASK; i++)   
+        if(pid == pcb[i].pid) break;    
+    if(i == NUM_MAX_TASK || pcb[i].status == TASK_EXITED) 
+        return 0;   // already exited
+    queue_pushfront(&(current_running->list), &(pcb[i].wait_list));
+
+    if(ready_queue.next == &ready_queue) return 0;
+    pcb_t* next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
+    next_pcb->status = TASK_RUNNING;
+    
+    current_running->status = TASK_BLOCKED;
+    pcb_t* prev_running = current_running;
+    current_running = next_pcb;
+    switch_to(prev_running->kernel_sp, next_pcb->kernel_sp);
+    
     return pid;
 }
 
-void do_exit(void)
+void do_exit()
 {
-    while(do_unblock(&current_running->wait_list));
     current_running->status = TASK_EXITED;
-    list_node_t* new_head = queue_popfront(&ready_queue);   
-    ready_queue = *new_head;
+    current_running->pid = -1; 
     
-    // Release lock held by current_running
-    if(current_running->lock_id != -1)
+    // release locks
+    if (current_running->lock_id >= 0) 
         do_mutex_lock_release(current_running->lock_id);
-    current_running = LIST_TO_PCB(new_head);
+
+    while(current_running->wait_list.next != &(current_running->wait_list))
+        do_unblock((list_node_t*)&(current_running->wait_list));
     do_scheduler();
 }
 
 int do_kill(pid_t pid)
 {
-    if(current_running->pid == pid) // If kill current --> exit
-        do_exit();
-
-    int i=0;
-    for(; i<NUM_MAX_TASK; i++)
-        if(pcb[i].pid == pid)   break;
-    if(i == NUM_MAX_TASK || pcb[i].status == TASK_EXITED)   return 0;   
+    if(pid == current_running->pid) 
+    {
+        do_exit();    
+        return 1;
+    }
+    int i;
+    for(i = 0; i < NUM_MAX_TASK; i++)
+        if(pcb[i].pid == pid) break;
+    if(i == NUM_MAX_TASK || pcb[i].status == TASK_EXITED) 
+        return 0;
     
-    list_node_t* new_head = queue_popfront(&pcb[i].list);
-    ready_queue = *new_head;
     pcb[i].status = TASK_EXITED;
-    if(pcb[i].pid == (LIST_TO_PCB(&ready_queue))->pid)
-
-    if(pcb[i].lock_id != -1)
+    pcb[i].pid = -1;
+    while(pcb[i].wait_list.next != &(pcb[i].wait_list))
+        do_unblock((list_node_t*)&(pcb[i].wait_list));
+    if(pcb[i].lock_id >= 0)
         do_mutex_lock_release(pcb[i].lock_id);
     return 1;
 }
@@ -292,4 +203,68 @@ int do_kill(pid_t pid)
 pid_t do_getpid()
 {
     return current_running->pid;
+}
+
+pid_t do_exec(char *name, int argc, char *argv[])
+{
+    int i;
+    for (i = 0; i < NUM_MAX_TASK; i++) 
+    {
+        if(strcmp(pcb[i].name, name) == 0 && pcb[i].status != TASK_EXITED)
+            return -1;  // already exists
+        if (pcb[i].status == TASK_EXITED) break;
+    }
+    if (i == NUM_MAX_TASK) return -2;   // no free
+    pcb[i].entry = load_task_img(name, tasks, tasknum);
+    if(pcb[i].entry == 0) return -3;    // load img failed
+
+    pcb[i].pid = ++pcb_num; 
+    pcb[i].status = TASK_READY;
+    strcpy(pcb[i].name, name);
+    pcb[i].lock_id = -1; // init lock_id
+
+    pcb[i].kernel_stack_base = allocKernelPage(1)+PAGE_SIZE;
+    pcb[i].user_stack_base = allocUserPage(1)+PAGE_SIZE;
+    init_pcb_stack(pcb[i].kernel_stack_base, pcb[i].user_stack_base,
+                   pcb[i].entry, &pcb[i]);
+    
+    pcb[i].wakeup_time = 0;
+    pcb[i].time_slice = pcb[i].time_slice_remaining = 1;
+    pcb[i].workload = 1;
+    init_list_head(&(pcb[i].wait_list));
+
+    ptr_t argv_base = pcb[i].user_stack_base - argc * sizeof(char*);
+    ptr_t current_sp = argv_base;
+    ptr_t *argv_ptr_array = (ptr_t *)argv_base;
+
+    for(int j = 0; j < argc; j++) {
+        int len = strlen(argv[j]) + 1;
+        current_sp -= len;
+        strcpy((char *)current_sp, argv[j]);
+        argv_ptr_array[j] = current_sp; 
+    }
+    argv_ptr_array[argc] = 0;
+    current_sp = current_sp & ~((ptr_t)0xF);
+
+    regs_context_t *pt_regs = (regs_context_t *)(pcb[i].kernel_stack_base - sizeof(regs_context_t));
+    pt_regs->regs[2] = current_sp;       // sp
+    pt_regs->regs[10] = (reg_t)argc;     // a0
+    pt_regs->regs[11] = (reg_t)argv_base;// a1
+    pcb[i].user_sp = current_sp; 
+
+    queue_pushfront(&(pcb[i].list), &ready_queue);
+
+    return pcb[i].pid;
+}
+
+void set_sched_workload(int workload)
+{
+    if(current_running == NULL || current_running->pid == 0)
+        return;
+    current_running->workload = workload;
+}
+
+void init_list_head(list_head* head)
+{
+    head->next = head->prev = head;
 }
