@@ -24,7 +24,7 @@
   sd    zero, OFFSET_REG_ZERO(sp)
   sd    ra,   OFFSET_REG_RA(sp)   
   sd    gp,   OFFSET_REG_GP(sp)
-  ; sd    tp,   OFFSET_REG_TP(sp)
+  # sd    tp,   OFFSET_REG_TP(sp)
   sd    s0,   OFFSET_REG_S0(sp)
   sd    s1,   OFFSET_REG_S1(sp)
   sd    a0,   OFFSET_REG_A0(sp)
@@ -80,7 +80,7 @@
   ld    zero, OFFSET_REG_ZERO(sp)
   ld    ra,   OFFSET_REG_RA(sp)   
   ld    gp,   OFFSET_REG_GP(sp)
-  ; ld    tp,   OFFSET_REG_TP(sp)
+  # ld    tp,   OFFSET_REG_TP(sp)
   ld    s0,   OFFSET_REG_S0(sp)
   ld    s1,   OFFSET_REG_S1(sp)
   ld    a0,   OFFSET_REG_A0(sp)
@@ -151,7 +151,7 @@ ENDPROC(disable_time_preempt)
 // NOTE: the address of previous pcb in a0
 // NOTE: the address of next pcb in a1
 ENTRY(switch_to)
-  ; addi sp, sp, -(SWITCH_TO_SIZE)
+  # addi sp, sp, -(SWITCH_TO_SIZE)
 
   /* TODO: [p2-task1] save all callee save registers on kernel stack,
    * see the definition of `struct switchto_context` in sched.h*/
@@ -186,13 +186,19 @@ ENTRY(switch_to)
   ld    s9, SWITCH_TO_S9(a1)
   ld    s10, SWITCH_TO_S10(a1)
   ld    s11, SWITCH_TO_S11(a1)
-  ; addi sp, sp, SWITCH_TO_SIZE
-  jr ra
+  # addi sp, sp, SWITCH_TO_SIZE
+  
+  # in multi_cpu, current_running not in tp strictly
+  # since tp based on cur_pcb, need to refresh tp!
+  mv    tp, a1
+
+  jr    ra
 ENDPROC(switch_to)
 
 ENTRY(ret_from_exception)
   /* TODO: [p2-task3] restore context via provided macro and return to sepc */
   /* HINT: remember to check your sp, does it point to the right address? */
+  call  unlock_kernel
   RESTORE_CONTEXT
   sret
 ENDPROC(ret_from_exception)
@@ -201,10 +207,12 @@ ENTRY(exception_handler_entry)
 
   /* TODO: [p2-task3] save context via the provided macro */
   SAVE_CONTEXT
+
+  call  lock_kernel
   /* TODO: [p2-task3] load ret_from_exception into $ra so that we can return to
    * ret_from_exception when interrupt_help complete.
    */
-  ; la    ra, ret_from_exception
+  # la    ra, ret_from_exception
 
   /* TODO: [p2-task3] call interrupt_helper
    * NOTE: don't forget to pass parameters for it.

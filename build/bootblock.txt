@@ -9,7 +9,7 @@ Disassembly of section .text:
     50200004:	e915                	bnez	a0,50200038 <secondary>
     50200006:	48a5                	li	a7,9
     50200008:	00000517          	auipc	a0,0x0
-    5020000c:	05150513          	addi	a0,a0,81 # 50200059 <launch_msg>
+    5020000c:	06b50513          	addi	a0,a0,107 # 50200073 <launch_msg>
     50200010:	fff50097          	auipc	ra,0xfff50
     50200014:	ff0080e7          	jalr	-16(ra) # 50150000 <bios_func_entry>
     50200018:	50200537          	lui	a0,0x50200
@@ -23,9 +23,19 @@ Disassembly of section .text:
     50200034:	7cd0006f          	j	50201000 <kernel>
 
 0000000050200038 <secondary>:
-    50200038:	10500073          	wfi
-    5020003c:	bff5                	j	50200038 <secondary>
+    50200038:	4289                	li	t0,2
+    5020003a:	1002b073          	csrc	sstatus,t0
+    5020003e:	502012b7          	lui	t0,0x50201
+    50200042:	10529073          	csrw	stvec,t0
+    50200046:	4289                	li	t0,2
+    50200048:	1042a073          	csrs	sie,t0
+    5020004c:	4289                	li	t0,2
+    5020004e:	1002a073          	csrs	sstatus,t0
 
-000000005020003e <stop>:
-    5020003e:	a001                	j	5020003e <stop>
-    50200040:	0001                	nop
+0000000050200052 <wait_for_wakeup>:
+    50200052:	10500073          	wfi
+    50200056:	bff5                	j	50200052 <wait_for_wakeup>
+
+0000000050200058 <stop>:
+    50200058:	a001                	j	50200058 <stop>
+    5020005a:	0001                	nop

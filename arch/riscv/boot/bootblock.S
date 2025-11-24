@@ -1,4 +1,5 @@
 #include <asm/biosdef.h>
+#include <csr.h>
 
 // os size location (os_size could be sectors [p1-task3] or bytes [p1-task4])
 .equ os_size_loc, 0x502001fc
@@ -49,7 +50,8 @@ secondary:
 	 * 3. enable software interrupt for ipi
 	 */
 	// disable all interrupts
-	csrci sstatus, SR_SIE
+	li 		t0, SR_SIE
+	csrc	sstatus, t0
 	
 	// set stvec
 	la		t0, kernel

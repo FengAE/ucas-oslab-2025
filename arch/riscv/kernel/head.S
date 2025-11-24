@@ -7,7 +7,7 @@
 #include <csr.h>
 
 #define KERNEL_STACK		0x50500000
-#define KERNEL_STACK_2  0x50600000
+#define KERNEL_STACK_2  0x50501000
 .section ".entry_function","ax"
 ENTRY(_start)
   /* Mask all interrupts */

@@ -11,8 +11,20 @@
 #include <assert.h>
 
 pcb_t pcb[NUM_MAX_TASK]; 
+ptr_t pid0_stack[NR_CPUS];
+pcb_t pid0_pcb[NR_CPUS];
+pcb_t* current_running[NR_CPUS];
 
-// based on sched.h
+// pcb_t pid0_pcb = {
+//     .pid = 0,
+//     .kernel_sp = (ptr_t)pid0_stack,
+//     .user_sp = (ptr_t)pid0_stack,
+//     .status = TASK_RUNNING,
+//     .name = "IDLE"
+// };
+
+
+// OFFSET: based on sched.h
 #define OFFSETOF_LIST 16
 #define LIST_TO_PCB(node) (pcb_t*)((char*)node - OFFSETOF_LIST)
 
@@ -71,33 +83,36 @@ void do_scheduler(void)
     check_sleeping();
     // pcb empty
     if(ready_queue.next == &ready_queue) return;
+    int cpu_id = get_current_cpu_id();
     pcb_t* next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
     if(next_pcb->status != TASK_EXITED)
         next_pcb->status = TASK_RUNNING;
 
-    if(current_running->status == TASK_RUNNING)
-        queue_pushfront(&(current_running->list), &ready_queue);  
-    if(current_running->status != TASK_EXITED) 
-        current_running->status = TASK_READY;
-    pcb_t* prev_running = current_running;
-    current_running = next_pcb; 
+    if(current_running[cpu_id]->status == TASK_RUNNING)
+        queue_pushfront(&(current_running[cpu_id]->list), &ready_queue);  
+    if(current_running[cpu_id]->status != TASK_EXITED) 
+        current_running[cpu_id]->status = TASK_READY;
+    pcb_t* prev_running = current_running[cpu_id];
+    current_running[cpu_id] = next_pcb; 
 
-    if(prev_running != current_running && current_running->status != TASK_EXITED) 
-        switch_to(prev_running->kernel_sp, current_running->kernel_sp);
+    if(prev_running != current_running[cpu_id] && current_running[cpu_id]->status != TASK_EXITED) 
+        switch_to(prev_running->kernel_sp, current_running[cpu_id]->kernel_sp);
 
 }
 
 void do_sleep(uint32_t sleep_time)
 {
     if(ready_queue.next == &ready_queue) return;
+    int cpu_id = get_current_cpu_id();
+
     pcb_t* next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
-    pcb_t* prev_running = current_running;
+    pcb_t* prev_running = current_running[cpu_id];
     uint64_t current_time = get_timer();
 
     prev_running->wakeup_time = current_time + (uint64_t)sleep_time;
-    queue_pushfront(&(current_running->list), &sleep_queue);
-    current_running->status = TASK_BLOCKED;
-    current_running = next_pcb;
+    queue_pushfront(&(current_running[cpu_id]->list), &sleep_queue);
+    current_running[cpu_id]->status = TASK_BLOCKED;
+    current_running[cpu_id] = next_pcb;
     next_pcb->status = TASK_RUNNING;
     switch_to(prev_running->kernel_sp, next_pcb->kernel_sp);
 }
@@ -105,13 +120,15 @@ void do_sleep(uint32_t sleep_time)
 void do_block(list_node_t *pcb_node, list_head *queue)
 {
     if(ready_queue.next == &ready_queue) return;
+
+    int cpu_id = get_current_cpu_id();
     pcb_t* next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
     next_pcb->status = TASK_RUNNING;
 
     queue_pushfront(pcb_node, queue);
-    current_running->status = TASK_BLOCKED; 
-    pcb_t* prev_running = current_running;
-    current_running = next_pcb;
+    current_running[cpu_id]->status = TASK_BLOCKED; 
+    pcb_t* prev_running = current_running[cpu_id];
+    current_running[cpu_id] = next_pcb;
     switch_to(prev_running->kernel_sp, next_pcb->kernel_sp);
 }
 
@@ -143,16 +160,18 @@ int do_waitpid(pid_t pid)
         if(pid == pcb[i].pid) break;    
     if(i == NUM_MAX_TASK || pcb[i].status == TASK_EXITED) 
         return 0;   // already exited
-    if(current_running->status == TASK_RUNNING)
-        queue_pushfront(&(current_running->list), &(pcb[i].wait_list));
+
+    int cpu_id = get_current_cpu_id();
+    if(current_running[cpu_id]->status == TASK_RUNNING)
+        queue_pushfront(&(current_running[cpu_id]->list), &(pcb[i].wait_list));
 
     if(ready_queue.next == &ready_queue) return 0;
     pcb_t* next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
     next_pcb->status = TASK_RUNNING;
     
-    current_running->status = TASK_BLOCKED;
-    pcb_t* prev_running = current_running;
-    current_running = next_pcb;
+    current_running[cpu_id]->status = TASK_BLOCKED;
+    pcb_t* prev_running = current_running[cpu_id];
+    current_running[cpu_id] = next_pcb;
     switch_to(prev_running->kernel_sp, next_pcb->kernel_sp);
     
     return pid;
@@ -160,21 +179,23 @@ int do_waitpid(pid_t pid)
 
 void do_exit()
 {
-    current_running->status = TASK_EXITED;
+    int cpu_id = get_current_cpu_id();
+    current_running[cpu_id]->status = TASK_EXITED;
     
     // release locks
-    if (current_running->lock_id >= 0) 
-        do_mutex_lock_release(current_running->lock_id);
+    if (current_running[cpu_id]->lock_id >= 0) 
+        do_mutex_lock_release(current_running[cpu_id]->lock_id);
         
-    while(current_running->wait_list.next != &(current_running->wait_list))
-        do_unblock((list_node_t*)&(current_running->wait_list));
-    current_running->lock_id = -1;
+    while(current_running[cpu_id]->wait_list.next != &(current_running[cpu_id]->wait_list))
+        do_unblock((list_node_t*)&(current_running[cpu_id]->wait_list));
+    current_running[cpu_id]->lock_id = -1;
     do_scheduler();
 }
 
 int do_kill(pid_t pid)
 {
-    if(pid == current_running->pid) 
+    int cpu_id = get_current_cpu_id();
+    if(pid == current_running[cpu_id]->pid) 
     {
         do_exit();    
         return 1;
@@ -198,7 +219,8 @@ int do_kill(pid_t pid)
 
 pid_t do_getpid()
 {
-    return current_running->pid;
+    int cpu_id = get_current_cpu_id();
+    return current_running[cpu_id]->pid;
 }
 
 pid_t do_exec(char *name, int argc, char *argv[])
@@ -256,9 +278,10 @@ pid_t do_exec(char *name, int argc, char *argv[])
 
 void set_sched_workload(int workload)
 {
-    if(current_running == NULL || current_running->pid == 0)
+    int cpu_id = get_current_cpu_id();
+    if(current_running[cpu_id] == NULL || current_running[cpu_id]->pid == 0)
         return;
-    current_running->workload = workload;
+    current_running[cpu_id]->workload = workload;
 }
 
 void init_list_head(list_head* head)

@@ -309,7 +309,8 @@ static void init_pcb(void)
 
     }
     /* TODO: [p2-task1] remember to initialize 'current_runing' */
-    current_running = &pid0_pcb[0];
+    current_running[0] = &pid0_pcb[0];
+    current_running[1] = &pid0_pcb[1];
 
     char* argv[1] = {"shell"};
     pid_t shell_pid = do_exec("shell", 1, argv);
@@ -356,55 +357,81 @@ static void init_syscall(void)
 
 int main(void)
 {
-    // Init jump table provided by kernel and bios(ΦωΦ)
-    init_jmptab();
-
-    // Init task information (〃'▽'〃)
-    init_task_info();
-
-    // Output 'Hello OS!', bss check result and OS version
-    int check = bss_check();
-    char output_str[] = "bss check: _ version: _\n\r";
-    char output_val[2] = {0};
-    int i, output_val_pos = 0;
-
-    output_val[0] = check ? 't' : 'f';
-    output_val[1] = version + '0';
-    for (i = 0; i < sizeof(output_str); ++i)
+    int id = get_current_cpu_id();
+    if(id == 0)
     {
-        buf[i] = output_str[i];
-        if (buf[i] == '_')
+        init_locks();
+        smp_init();
+        lock_kernel();
+
+        // Init jump table provided by kernel and bios(ΦωΦ)
+        init_jmptab();
+
+        // Init task information (〃'▽'〃)
+        init_task_info();
+
+        // Output 'Hello OS!', bss check result and OS version
+        int check = bss_check();
+        char output_str[] = "bss check: _ version: _\n\r";
+        char output_val[2] = {0};
+        int i, output_val_pos = 0;
+
+        output_val[0] = check ? 't' : 'f';
+        output_val[1] = version + '0';
+        for (i = 0; i < sizeof(output_str); ++i)
         {
-            buf[i] = output_val[output_val_pos++];
+            buf[i] = output_str[i];
+            if (buf[i] == '_')
+            {
+                buf[i] = output_val[output_val_pos++];
+            }
         }
+        bios_putstr("Hello OS!\n\r");
+        bios_putstr(buf);
+
+        // Init Process Control Blocks |•'-'•) ✧
+        init_pcb();
+        printk("> [INIT] PCB initialization succeeded.\n");
+        // Read CPU frequency (｡•ᴗ-)_
+        time_base = bios_read_fdt(TIMEBASE);
+
+        // Init lock mechanism o(´^｀)o
+        init_locks();
+        printk("> [INIT] Lock mechanism initialization succeeded.\n");
+
+        // Init interrupt (^_^)
+        init_exception();
+        printk("> [INIT] Interrupt processing initialization succeeded.\n");
+
+        // Init system call table (0_0)n
+        init_syscall();
+        printk("> [INIT] System call initialized successfully.\n");
+
+        // Init screen (QAQ)
+        init_screen();   
+        printk("> [MASTER] Core 0 Init Done. Releasing Kernel Lock.\n");
+
+        asm volatile(
+			"mv tp, %0"
+			:
+			: "r"(current_running[0]));
+
+        unlock_kernel();
+        wakeup_other_hart(NULL);
     }
-    bios_putstr("Hello OS!\n\r");
-    bios_putstr(buf);
-
-    // Init Process Control Blocks |•'-'•) ✧
-    init_pcb();
-    printk("> [INIT] PCB initialization succeeded.\n");
-    // Read CPU frequency (｡•ᴗ-)_
-    time_base = bios_read_fdt(TIMEBASE);
-
-    // Init lock mechanism o(´^｀)o
-    init_locks();
-    printk("> [INIT] Lock mechanism initialization succeeded.\n");
-
-    // Init interrupt (^_^)
-    init_exception();
-    printk("> [INIT] Interrupt processing initialization succeeded.\n");
-
-    // Init system call table (0_0)n
-    init_syscall();
-    printk("> [INIT] System call initialized successfully.\n");
-
-    smp_init();
-    printk("> [SMP] Hart %lu online.\n", get_current_cpu_id());
-
-    // Init screen (QAQ)
-    init_screen();   
-    
+    else
+    {
+        // Wait for Master to finish init
+        lock_kernel();  
+        init_jmptab();  // to use printk
+        printk("\n> [SLAVE] Core %d started!\n", id);
+        setup_exception();  
+        asm volatile(
+			"mv tp, %0"
+			:
+			: "r"(current_running[1]));
+        unlock_kernel();
+    }
 
     // printk("tasknum: %d\n", tasknum);
     // for(int i=0; i<tasknum; i++)

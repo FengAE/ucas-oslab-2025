@@ -115,8 +115,9 @@ extern list_head sleep_queue;
 extern int pcb_num;
 
 /* current running task PCB */
-register pcb_t * current_running asm("tp");
 extern pid_t process_id;
+// register pcb_t * current_running asm("tp");
+extern pcb_t* current_running[NR_CPUS];
 
 extern pcb_t pcb[NUM_MAX_TASK];
 // extern pcb_t pid0_pcb;

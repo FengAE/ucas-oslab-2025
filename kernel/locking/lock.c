@@ -67,14 +67,15 @@ int do_mutex_lock_init(int key)
 void do_mutex_lock_acquire(int mlock_idx)
 {
     /* TODO: [p2-task2] acquire mutex lock */
+    int cpu_id = get_current_cpu_id();
     if(mlocks[mlock_idx].lock.status == UNLOCKED)
     {
-        current_running->lock_id = mlock_idx;
+        current_running[cpu_id]->lock_id = mlock_idx;
         mlocks[mlock_idx].lock.status = LOCKED;
     }
     else
     {
-        do_block(&current_running->list, &mlocks[mlock_idx].block_queue);
+        do_block(&current_running[cpu_id]->list, &mlocks[mlock_idx].block_queue);
     }
 }
 
@@ -133,7 +134,10 @@ void do_barrier_wait(int bar_idx)
         while(do_unblock(&barriers[bar_idx].wait_queue)); 
     } 
     else 
-        do_block(&current_running->list, &barriers[bar_idx].wait_queue);
+    {
+        int cpu_id = get_current_cpu_id();
+        do_block(&current_running[cpu_id]->list, &barriers[bar_idx].wait_queue);
+    }
 }
 
 void do_barrier_destroy(int bar_idx)
@@ -182,7 +186,8 @@ void do_condition_wait(int cond_idx, int mutex_idx)
     conditions[cond_idx].num_waiting++;
     do_mutex_lock_release(mutex_idx);
 
-    do_block(&current_running->list, &conditions[cond_idx].wait_queue);
+    int cpu_id = get_current_cpu_id();
+    do_block(&current_running[cpu_id]->list, &conditions[cond_idx].wait_queue);
     do_mutex_lock_acquire(mutex_idx);
 }
 
@@ -301,7 +306,8 @@ int do_mbox_send(int mbox_idx, void *msg, int msg_length)
     {
         blocked_times++;
         do_mutex_lock_release(mbox->mutex_idx);
-        do_block(&current_running->list, &mbox->send_queue);
+        int cpu_id = get_current_cpu_id();
+        do_block(&current_running[cpu_id]->list, &mbox->send_queue);
         do_mutex_lock_acquire(mbox->mutex_idx);
     }
 
@@ -332,7 +338,8 @@ int do_mbox_recv(int mbox_idx, void *msg, int msg_length)
     {
         blocked_times++;
         do_mutex_lock_release(mbox->mutex_idx);
-        do_block(&current_running->list, &mbox->recv_queue);        
+        int cpu_id = get_current_cpu_id();
+        do_block(&current_running[cpu_id]->list, &mbox->recv_queue);        
         do_mutex_lock_acquire(mbox->mutex_idx);
     }
 
