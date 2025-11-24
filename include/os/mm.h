@@ -27,12 +27,13 @@
 #define MM_H
 
 #include <type.h>
+#include <os/smp.h>
 
 #define MEM_SIZE 32
 #define PAGE_SIZE 4096 // 4K
 #define INIT_KERNEL_STACK 0x50500000
 #define INIT_USER_STACK 0x52500000
-#define FREEMEM_KERNEL (INIT_KERNEL_STACK+PAGE_SIZE)
+#define FREEMEM_KERNEL (INIT_KERNEL_STACK+PAGE_SIZE*NR_CPUS)
 #define FREEMEM_USER INIT_USER_STACK
 
 /* Rounding; only works for n = power of two */

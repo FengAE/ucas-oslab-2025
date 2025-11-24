@@ -11,14 +11,7 @@
 #include <assert.h>
 
 pcb_t pcb[NUM_MAX_TASK]; 
-const ptr_t pid0_stack = INIT_KERNEL_STACK + PAGE_SIZE;
-pcb_t pid0_pcb = {
-    .pid = 0,
-    .kernel_sp = (ptr_t)pid0_stack,
-    .user_sp = (ptr_t)pid0_stack,
-    .status = TASK_RUNNING,
-    .name = "IDLE"
-};
+
 // based on sched.h
 #define OFFSETOF_LIST 16
 #define LIST_TO_PCB(node) (pcb_t*)((char*)node - OFFSETOF_LIST)
@@ -196,7 +189,8 @@ int do_kill(pid_t pid)
     pcb[i].status = TASK_EXITED;
     if(pcb[i].lock_id >= 0)
         do_mutex_lock_release(pcb[i].lock_id);
-    while(do_unblock((list_node_t*)&(pcb[i].wait_list)));
+    while(pcb[i].wait_list.next != &(pcb[i].wait_list))
+        do_unblock((list_node_t*)&(pcb[i].wait_list));
         
     pcb[i].lock_id = -1;
     return 1;

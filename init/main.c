@@ -282,12 +282,23 @@ static void init_pcb(void)
 {
     pcb_num = 0;
     /* TODO: [p2-task1] load needed tasks and init their corresponding PCB */
-    pid0_pcb.pid = 0;
-    pid0_pcb.status = TASK_RUNNING;
-    pid0_pcb.kernel_sp = allocKernelPage(1);
-    pid0_pcb.user_sp = 0;
-    pid0_pcb.cursor_x = pid0_pcb.cursor_y = 0;
-    init_pcb_stack(pid0_pcb.kernel_sp, pid0_pcb.user_sp, 0, &pid0_pcb);
+    for (int i = 0; i < NR_CPUS; i++)
+    {
+        pcb_t *idle = &pid0_pcb[i];
+        ptr_t stack_top = allocKernelPage(1) + PAGE_SIZE;
+        idle->pid = 0;
+        idle->status = TASK_RUNNING;
+        idle->cursor_x = 0;
+        idle->cursor_y = 0;
+        idle->kernel_sp = idle->kernel_stack_base = stack_top;
+        idle->user_sp = idle->user_stack_base = 0;
+        strcpy(idle->name, "IDLE");
+        init_list_head(&idle->wait_list);
+        idle->list.next = idle->list.prev = NULL;
+        pid0_stack[i] = stack_top;
+
+        init_pcb_stack(stack_top, idle->user_sp, 0, idle);
+    }
 
     for (int i = 0; i < NUM_MAX_TASK; i++) 
     {
@@ -298,7 +309,7 @@ static void init_pcb(void)
 
     }
     /* TODO: [p2-task1] remember to initialize 'current_runing' */
-    current_running = &pid0_pcb;
+    current_running = &pid0_pcb[0];
 
     char* argv[1] = {"shell"};
     pid_t shell_pid = do_exec("shell", 1, argv);
@@ -388,9 +399,12 @@ int main(void)
     init_syscall();
     printk("> [INIT] System call initialized successfully.\n");
 
+    smp_init();
+    printk("> [SMP] Hart %lu online.\n", get_current_cpu_id());
+
     // Init screen (QAQ)
     init_screen();   
-    // printk("> [INIT] SCREEN initialization succeeded.\n");
+    
 
     // printk("tasknum: %d\n", tasknum);
     // for(int i=0; i<tasknum; i++)

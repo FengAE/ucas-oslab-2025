@@ -53,7 +53,7 @@ int main()
         bytes += len;
 
         sys_move_cursor(0, position);
-        printf("[Client] send bytes: %ld, blocked: %d", bytes, blocked);
+        printf("[Client] send bytes: %ld, blocked: %d\n", bytes, blocked);
         sys_sleep(1);
     }
 #endif

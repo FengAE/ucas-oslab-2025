@@ -7,11 +7,16 @@
 #include <csr.h>
 
 #define KERNEL_STACK		0x50500000
+#define KERNEL_STACK_2  0x50600000
 .section ".entry_function","ax"
 ENTRY(_start)
   /* Mask all interrupts */
-  csrw CSR_SIE, zero
-  csrw CSR_SIP, zero
+  csrw  CSR_SIE, zero
+  csrw  CSR_SIP, zero
+
+  /* Check ID */
+  csrr  a0, CSR_MHARTID
+  bnez  a0, secondary_start
 
   /* TODO: [p1-task2] clear BSS for flat non-ELF images */
   la    t0, __bss_start
@@ -25,6 +30,12 @@ clear_bss:
   /* TODO: [p1-task2] setup C environment */
 end_clear_bss:
   la    sp, KERNEL_STACK
+  call  main
+
+secondary_start:
+  /* Slave Core Stack Setup */
+  /* Use a different stack area to avoid conflict */
+  la    sp, KERNEL_STACK_2
   call  main
 
 loop:

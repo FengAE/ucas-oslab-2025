@@ -23,22 +23,25 @@ void init_locks(void)
 void spin_lock_init(spin_lock_t *lock)
 {
     /* TODO: [p2-task2] initialize spin lock */
+    atomic_swap(UNLOCKED, (ptr_t)&lock->status);
 }
 
 int spin_lock_try_acquire(spin_lock_t *lock)
 {
     /* TODO: [p2-task2] try to acquire spin lock */
-    return 0;
+    return atomic_swap(LOCKED, (ptr_t)&lock->status) == UNLOCKED;
 }
 
 void spin_lock_acquire(spin_lock_t *lock)
 {
     /* TODO: [p2-task2] acquire spin lock */
+    while (atomic_swap(LOCKED, (ptr_t)&lock->status) == LOCKED);
 }
 
 void spin_lock_release(spin_lock_t *lock)
 {
     /* TODO: [p2-task2] release spin lock */
+    atomic_swap(UNLOCKED, (ptr_t)&lock->status);
 }
 
 int do_mutex_lock_init(int key)
@@ -85,7 +88,7 @@ void do_mutex_lock_release(int mlock_idx)
     }
 }
 
-// ]================== barriers ================
+// ================== barriers ================
 void init_barriers(void)
 {
     for (int i = 0; i < BARRIER_NUM; i++) 
