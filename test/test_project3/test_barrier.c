@@ -36,6 +36,6 @@ int main(int argc, char *argv[])
 
         sys_sleep(sleep_time);
     }
-
+    sys_exit();
     return 0;
 }

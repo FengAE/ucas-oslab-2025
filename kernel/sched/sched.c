@@ -212,8 +212,9 @@ pid_t do_exec(char *name, int argc, char *argv[])
     int i;
     for (i = 0; i < NUM_MAX_TASK; i++) 
     {
-        if(strcmp(pcb[i].name, name) == 0 && pcb[i].status != TASK_EXITED)
-            return -1;  // already exists
+        // Here enable multiple instances of the same program
+        // if(strcmp(pcb[i].name, name) == 0 && pcb[i].status != TASK_EXITED)
+        //     return -1;  // already exists
         if (pcb[i].status == TASK_EXITED) break;
     }
     if (i == NUM_MAX_TASK) return -2;   // no free

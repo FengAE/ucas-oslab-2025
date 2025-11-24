@@ -103,10 +103,11 @@ int main(void)
                         }
 
                         argv[argc] = NULL; 
-                        if (argc > 1) {
+                        if (argc > 1) 
+                        {
                             pid_t pid = sys_exec(argv[1], argc, argv); 
-                            if(pid == -1)    printf("Error: task alreay exits: \"%s\"\n", argv[1]);
-                            else if(pid == -2)  printf("Error: no free pcb\n");
+                            // if(pid == -1)    printf("Error: task alreay exits: \"%s\"\n", argv[1]);
+                            if(pid == -2)  printf("Error: no free pcb\n");
                             else if(pid == -3)  printf("Error: load task image failed: \"%s\"\n", argv[1]);
                             else    printf("exec pid: [%d], successfully!\n", pid);
                             

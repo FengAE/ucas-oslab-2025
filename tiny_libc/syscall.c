@@ -129,13 +129,13 @@ void sys_exit(void)
 int  sys_kill(pid_t pid)
 {
     /* TODO: [p3-task1] call invoke_syscall to implement sys_kill */
-    invoke_syscall(SYSCALL_KILL, pid, IGNORE, IGNORE, IGNORE, IGNORE);
+    return invoke_syscall(SYSCALL_KILL, pid, IGNORE, IGNORE, IGNORE, IGNORE);
 }
 
 int  sys_waitpid(pid_t pid)
 {
     /* TODO: [p3-task1] call invoke_syscall to implement sys_waitpid */
-    invoke_syscall(SYSCALL_WAITPID, pid, IGNORE, IGNORE, IGNORE, IGNORE);
+    return invoke_syscall(SYSCALL_WAITPID, pid, IGNORE, IGNORE, IGNORE, IGNORE);
 }
 
 
@@ -148,19 +148,19 @@ void sys_ps(void)
 pid_t sys_getpid()
 {
     /* TODO: [p3-task1] call invoke_syscall to implement sys_getpid */
-    invoke_syscall(SYSCALL_GETPID, IGNORE, IGNORE, IGNORE, IGNORE, IGNORE);
+    return invoke_syscall(SYSCALL_GETPID, IGNORE, IGNORE, IGNORE, IGNORE, IGNORE);
 }
 
 int  sys_getchar(void)
 {
     /* TODO: [p3-task1] call invoke_syscall to implement sys_getchar */
-    invoke_syscall(SYSCALL_READCH, IGNORE, IGNORE, IGNORE, IGNORE, IGNORE);
+    return invoke_syscall(SYSCALL_READCH, IGNORE, IGNORE, IGNORE, IGNORE, IGNORE);
 }
 
 int  sys_barrier_init(int key, int goal)
 {
     /* TODO: [p3-task2] call invoke_syscall to implement sys_barrier_init */
-    invoke_syscall(SYSCALL_BARR_INIT, key, goal, IGNORE, IGNORE, IGNORE);
+    return invoke_syscall(SYSCALL_BARR_INIT, key, goal, IGNORE, IGNORE, IGNORE);
 }
 
 void sys_barrier_wait(int bar_idx)
@@ -178,32 +178,37 @@ void sys_barrier_destroy(int bar_idx)
 int sys_condition_init(int key)
 {
     /* TODO: [p3-task2] call invoke_syscall to implement sys_condition_init */
+    return invoke_syscall(SYSCALL_COND_INIT, key, IGNORE, IGNORE, IGNORE, IGNORE);
 }
 
 void sys_condition_wait(int cond_idx, int mutex_idx)
 {
     /* TODO: [p3-task2] call invoke_syscall to implement sys_condition_wait */
+    invoke_syscall(SYSCALL_COND_WAIT, cond_idx, mutex_idx, IGNORE, IGNORE, IGNORE);
 }
 
 void sys_condition_signal(int cond_idx)
 {
     /* TODO: [p3-task2] call invoke_syscall to implement sys_condition_signal */
+    invoke_syscall(SYSCALL_COND_SIGNAL, cond_idx, IGNORE, IGNORE, IGNORE, IGNORE);
 }
 
 void sys_condition_broadcast(int cond_idx)
 {
     /* TODO: [p3-task2] call invoke_syscall to implement sys_condition_broadcast */
+    invoke_syscall(SYSCALL_COND_BROADCAST, cond_idx, IGNORE, IGNORE, IGNORE, IGNORE);
 }
 
 void sys_condition_destroy(int cond_idx)
 {
     /* TODO: [p3-task2] call invoke_syscall to implement sys_condition_destroy */
+    invoke_syscall(SYSCALL_COND_DESTROY, cond_idx, IGNORE, IGNORE, IGNORE, IGNORE);
 }
 
 int sys_semaphore_init(int key, int init)
 {
     /* TODO: [p3-task2] call invoke_syscall to implement sys_semaphore_init */
-    invoke_syscall(SYSCALL_SEMA_INIT, key, init, IGNORE, IGNORE, IGNORE);
+    return invoke_syscall(SYSCALL_SEMA_INIT, key, init, IGNORE, IGNORE, IGNORE);
 }
 
 void sys_semaphore_up(int sema_idx)
@@ -224,21 +229,25 @@ void sys_semaphore_destroy(int sema_idx)
 int sys_mbox_open(char * name)
 {
     /* TODO: [p3-task2] call invoke_syscall to implement sys_mbox_open */
+    return invoke_syscall(SYSCALL_MBOX_OPEN, (long)name, IGNORE, IGNORE, IGNORE, IGNORE);
 }
 
 void sys_mbox_close(int mbox_id)
 {
     /* TODO: [p3-task2] call invoke_syscall to implement sys_mbox_close */
+    invoke_syscall(SYSCALL_MBOX_CLOSE, mbox_id, IGNORE, IGNORE, IGNORE, IGNORE);
 }
 
 int sys_mbox_send(int mbox_idx, void *msg, int msg_length)
 {
     /* TODO: [p3-task2] call invoke_syscall to implement sys_mbox_send */
+    return invoke_syscall(SYSCALL_MBOX_SEND, mbox_idx, (long)msg, msg_length, IGNORE, IGNORE);
 }
 
 int sys_mbox_recv(int mbox_idx, void *msg, int msg_length)
 {
     /* TODO: [p3-task2] call invoke_syscall to implement sys_mbox_recv */
+    return invoke_syscall(SYSCALL_MBOX_RECV, mbox_idx, (long)msg, msg_length, IGNORE, IGNORE);
 }
 
 // I/O 

@@ -44,7 +44,7 @@ int main(int argc, int arg0)
 int main(int argc, char *argv[])
 {
     assert(argc >= 1);
-    int print_location = (argc == 1) ? 0 : atoi(argv[1]);
+    int print_location = 0;
 
     // Initialize barrier
     int handle = sys_barrier_init(BARR_KEY, NUM_TB);
@@ -62,7 +62,6 @@ int main(int argc, char *argv[])
 
         char *argv[3] = {"test_barrier", buf_location, buf_handle};
         pids[i] = sys_exec(argv[0], 3, argv);
-
     }
 
     // Wait child processes to exit
@@ -73,7 +72,7 @@ int main(int argc, char *argv[])
 
     // Destroy barrier
     sys_barrier_destroy(handle);
-
+    sys_exit();
     return 0;
 }
 #endif

@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
 
         sys_sleep(next);
     }  
+    sys_exit();
 #endif
     
     return 0;

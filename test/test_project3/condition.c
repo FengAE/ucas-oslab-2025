@@ -15,7 +15,7 @@ int main(int argc, char * argv[])
 {
 #ifndef S_CORE
     assert(argc >= 1);
-    int print_location = (argc == 1) ? 0 : atoi(argv[1]);
+    int print_location = 0;
 
     // Initialize condition
     int handle_cond = sys_condition_init(COND_KEY);
@@ -67,6 +67,7 @@ int main(int argc, char * argv[])
     
     // Destroy condition
     sys_condition_destroy(handle_cond);
+    sys_exit();
 #endif
 
     return 0;    
