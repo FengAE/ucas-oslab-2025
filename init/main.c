@@ -290,6 +290,8 @@ static void init_pcb(void)
         idle->status = TASK_RUNNING;
         idle->cursor_x = 0;
         idle->cursor_y = 0;
+        idle->cpu_id = i;
+        idle->mask = 3; // to enable initail task mask is 0b11
         idle->kernel_sp = idle->kernel_stack_base = stack_top;
         idle->user_sp = idle->user_stack_base = 0;
         strcpy(idle->name, "IDLE");
@@ -306,7 +308,7 @@ static void init_pcb(void)
         pcb[i].status = TASK_EXITED; // free, exec can use
         pcb[i].check_point = 0;
         pcb[i].workload = 0;
-
+        pcb[i].mask = 3;  // enable running on both cpus
     }
     /* TODO: [p2-task1] remember to initialize 'current_runing' */
     current_running[0] = &pid0_pcb[0];
@@ -352,6 +354,7 @@ static void init_syscall(void)
     syscall[SYSCALL_MBOX_CLOSE] = (long (*)())do_mbox_close;
     syscall[SYSCALL_MBOX_SEND] = (long (*)())do_mbox_send;
     syscall[SYSCALL_MBOX_RECV] = (long (*)())do_mbox_recv;
+    syscall[SYSCALL_TASKSET] = (long (*)())do_taskset;
 }
 /************************************************************/
 

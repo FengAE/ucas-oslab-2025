@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <type.h>
 
 #define MAX_ITERATION 150
 #define INTEGER_TEST_CHUNK 100000

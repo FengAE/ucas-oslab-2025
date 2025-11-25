@@ -49,12 +49,27 @@ void do_scheduler(void)
 
 //     // TODO: [p2-task1] Modify the current_running pointer.
     pcb_t* next_pcb = NULL;
-    while (ready_queue.next != &ready_queue) 
+    list_node_t* cur = ready_queue.prev;
+
+    // From tail to head, search: not exit and satisfy mask
+    while (cur != &ready_queue) 
     {
-        next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
-        if (next_pcb->status != TASK_EXITED) 
+        pcb_t* candidate = LIST_TO_PCB(cur);
+        list_node_t* prev_node = cur->prev;
+        if(candidate->status == TASK_EXITED)
+        {
+            // remove from ready_queue
+            prev_node->next = cur->next;
+            cur->next->prev = prev_node;
+        }
+        else if(candidate->mask & (1<<cpu_id))  // satisfy mask
+        {
+            prev_node->next = cur->next;
+            cur->next->prev = prev_node;
+            next_pcb = candidate;
             break;
-        next_pcb = NULL; 
+        }
+        cur = prev_node;
     }
 
     // no runable task
@@ -65,11 +80,12 @@ void do_scheduler(void)
         next_pcb->status = TASK_RUNNING;
 
     pcb_t* prev_running = current_running[cpu_id];
-    if(prev_running->status == TASK_RUNNING)
+    if(prev_running->status == TASK_RUNNING && prev_running->pid != 0)
         queue_pushfront(&(prev_running->list), &ready_queue);
     if(prev_running->status != TASK_EXITED)
         prev_running->status = TASK_READY;
 
+    next_pcb->cpu_id = cpu_id;
     current_running[cpu_id] = next_pcb;
 
     // Have to switch_to, even prev or cur is exited!!
@@ -166,8 +182,13 @@ void do_process_show(int startline)
     for(int i=0; i<pcb_num; i++)
     {
         if(pcb[i].status != TASK_EXITED)
-            printk("[%d] PID : %d   STATUS: %s  \tNAME: %s\n", idx++, pcb[i].pid, 
-                        status_str[pcb[i].status], pcb[i].name);
+        {
+            printk("[%d] PID: %d  STATUS: %s  \tmask: 0x%d   \tNAME: %s", idx++, pcb[i].pid, 
+                        status_str[pcb[i].status], pcb[i].mask, pcb[i].name);
+            if(pcb[i].status == TASK_RUNNING)
+                printk("    \tRunning on core %d", pcb[i].cpu_id);
+            printk("\n");
+        }
     }   
 }
 
@@ -260,6 +281,12 @@ pid_t do_exec(char *name, int argc, char *argv[])
     strcpy(pcb[i].name, name);
     pcb[i].lock_id = -1; // init lock_id
 
+    // set cpu_id and mask
+    int cpu_id = get_current_cpu_id();
+    pcb[i].cpu_id = cpu_id;
+    if(current_running[cpu_id]->pid > 1)    // not launched by shell or pid0
+        pcb[i].mask = current_running[cpu_id]->mask;    // the same with parent
+
     pcb[i].kernel_stack_base = allocKernelPage(1)+PAGE_SIZE;
     pcb[i].user_stack_base = allocUserPage(1)+PAGE_SIZE;
     init_pcb_stack(pcb[i].kernel_stack_base, pcb[i].user_stack_base,
@@ -292,6 +319,39 @@ pid_t do_exec(char *name, int argc, char *argv[])
     queue_pushfront(&(pcb[i].list), &ready_queue);
 
     return pcb[i].pid;
+}
+
+pid_t do_taskset(void *target, int mask, int mode)
+{
+    if(!mode)    // only change mask, target is pid
+    {
+        int pid = (int)target;
+        for(int i=0; i<NUM_MAX_TASK; i++)
+        {
+            if(pcb[i].status != TASK_EXITED && pcb[i].pid == pid)
+            {
+                pcb[i].mask = mask;
+                return pid;
+            }
+        }
+        printk("taskset failed\n");
+        return -1;
+    }
+    else    // need to exec
+    {
+        char* name = (char*)target;
+        char* argv[1] = {name};
+        pid_t id = do_exec(name, 1, argv);
+        if(id >= 0)
+        {
+            for(int i=0; i<NUM_MAX_TASK; i++)
+            {
+                if(pcb[i].pid == id)    pcb[i].mask = mask;
+            }
+        }
+        else    printk("taskset failed\n");
+        return id;
+    }
 }
 
 void set_sched_workload(int workload)

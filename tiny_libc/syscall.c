@@ -120,6 +120,11 @@ pid_t sys_exec(char *name, int argc, char **argv)
 }
 #endif
 
+pid_t sys_taskset(void* name, int mask, int mode)
+{
+    return invoke_syscall(SYSCALL_TASKSET, (long)name, mask, mode, IGNORE, IGNORE);
+}
+
 void sys_exit(void)
 {
     /* TODO: [p3-task1] call invoke_syscall to implement sys_exit */

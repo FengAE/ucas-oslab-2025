@@ -78,31 +78,30 @@ int main(void)
                     sys_ps();
                 else
                 {
-                    int ptr = 0;
-                    char command[BUFFER_SIZE];
-                    for(; ptr<strlen(buffer) && buffer[ptr]!=' '; ptr++)
-                        command[ptr] = buffer[ptr];
-                    command[ptr] = '\0';
-                    if (strcmp(command, "exec") == 0) 
-                    {
-                        int argc = 0;
-                        char *argv[16]; 
-                        int i = 0;
-                        int len = strlen(buffer);
-                        while (i < len) {
-                            while (i < len && buffer[i] == ' ') {
-                                buffer[i] = '\0'; 
-                                i++;
-                            }
-                            if (i >= len) break;
-                            argv[argc++] = &buffer[i];
-                            // find the end of current word
-                            while (i < len && buffer[i] != ' ') {
-                                i++;
-                            }
+                    // int ptr = 0;
+                    // char command[BUFFER_SIZE];
+                    // for(; ptr<strlen(buffer) && buffer[ptr]!=' '; ptr++)
+                    //     command[ptr] = buffer[ptr];
+                    // command[ptr] = '\0';
+                    int argc = 0;
+                    char *argv[16]; 
+                    int i = 0;
+                    int len = strlen(buffer);
+                    while (i < len) {
+                        while (i < len && buffer[i] == ' ') {
+                            buffer[i] = '\0'; 
+                            i++;
                         }
+                        if (i >= len) break;
+                        argv[argc++] = &buffer[i];
+                        // find the end of current word
+                        while (i < len && buffer[i] != ' ') 
+                            i++;
+                    }
+                    argv[argc] = NULL;
 
-                        argv[argc] = NULL; 
+                    if (strcmp(argv[0], "exec") == 0) 
+                    {                         
                         if (argc > 1) 
                         {
                             pid_t pid = sys_exec(argv[1], argc, argv); 
@@ -117,25 +116,75 @@ int main(void)
                         } else 
                             printf("Error: exec needs parameters\n");
                     }
-                    else if(strcmp(command, "kill") == 0)
+                    else if(strcmp(argv[0], "kill") == 0)
                     {
-                        for(; ptr<strlen(buffer) && buffer[ptr]==' '; ptr++);
-                        int id = 0;
-                        for(; ptr<strlen(buffer) && buffer[ptr]>='0' && buffer[ptr]<='9'; ptr++)
-                            id = id*10 + buffer[ptr]-'0';
-
-                        if(ptr < strlen(buffer))    
+                        if(argc != 2)    
                             printf("Error: expect format: kill id\n");
                         else
                         {
-                            printf("kill pid: [%d]\n", id);
-                            sys_kill(id);
+                            int ptr = 0, id = 0;
+                            for(; ptr<strlen(argv[1]) && argv[1][ptr]>='0' && argv[1][ptr]<='9'; ptr++)
+                                id = id*10 + argv[1][ptr]-'0';
+                            if(ptr < strlen(argv[1]))
+                                printf("Error: expect format: kill id\n");
+                            else
+                            {
+                                printf("kill pid: [%d]\n", id);
+                                sys_kill(id);
+                            }
+                        }
+                    }
+                    else if(strcmp(argv[0], "taskset") == 0)
+                    {
+                        if((argc == 3) && (strncmp(argv[1], "0x", 2)==0))
+                        {
+                            int ptr = 2, mask = 0;
+                            for(; ptr<strlen(argv[1]); ptr++)
+                            {
+                                if(argv[1][ptr]>='0' && argv[1][ptr]<='9')
+                                    mask = mask*16 + argv[1][ptr]-'0';
+                                else if(argv[1][ptr]>='a' && argv[1][ptr]<='f')
+                                    mask = mask*16 + 10 + argv[1][ptr]-'a';
+                                else break;
+                            }
+                            if(ptr < strlen(argv[1]))
+                                printf("Error: expect format: taskset mask name\n");
+                            else
+                            {
+                                printf("taskset 0x%d successfully\n", mask);
+                                sys_taskset((void*)argv[2], mask, 1);
+                            }
+                        }
+                        else if((argc == 4) && (strcmp(argv[1], "-p")==0) && (strncmp(argv[2], "0x", 2)==0))
+                        {
+                            int ptr = 2, mask = 0;
+                            for(; ptr<strlen(argv[2]); ptr++)
+                            {
+                                if(argv[2][ptr]>='0' && argv[2][ptr]<='9')
+                                    mask = mask*16 + argv[2][ptr]-'0';
+                                else if(argv[2][ptr]>='a' && argv[2][ptr]<='f')
+                                    mask = mask*16 + 10 + argv[2][ptr]-'a';
+                                else break;
+                            }
+                            printf("set mask 0x%d\n", mask);
+                            if(ptr < strlen(argv[2]))
+                                printf("Error: expect format: taskset -p mask pid\n");
+                            else
+                            {
+                                ptr = 0;
+                                int id = 0;
+                                for(; ptr<strlen(argv[3]) && argv[3][ptr]>='0' && argv[3][ptr]<='9'; ptr++)
+                                    id = id*10 + argv[3][ptr]-'0';
+                                if(ptr < strlen(argv[3]))
+                                    printf("Error: expect format: taskset -p mask pid\n");
+                                else
+                                    sys_taskset((void*)id, mask, 0);
+                            }
                         }
                     }
                     else
                         printf("Error: Unkown command \"%s\"\n", buffer);
-                }
-                
+                }  
             }
             printf("> root@UCAS_OS: ");
             buf_ptr = 0;

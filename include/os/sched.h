@@ -99,6 +99,8 @@ typedef struct pcb
 
     ptr_t entry;
     char name[16];
+    int mask;   // which cpu allow to run
+    int cpu_id;
 
     int workload;
     int check_point;
@@ -147,6 +149,7 @@ extern pid_t do_exec(int id, int argc, uint64_t arg0, uint64_t arg1, uint64_t ar
 #else
 extern pid_t do_exec(char *name, int argc, char *argv[]);
 #endif
+extern pid_t do_taskset(void* target, int mask, int mode);
 extern void do_exit(void);
 extern int do_kill(pid_t pid);
 extern int do_waitpid(pid_t pid);
