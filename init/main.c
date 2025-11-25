@@ -315,7 +315,7 @@ static void init_pcb(void)
     current_running[1] = &pid0_pcb[1];
 
     char* argv[1] = {"shell"};
-    pid_t shell_pid = do_exec("shell", 1, argv);
+    do_exec("shell", 1, argv);
     // char* argv1[1] = {"waitpid"};
     // do_exec("waitpid", 1, argv1);
 }
@@ -355,6 +355,9 @@ static void init_syscall(void)
     syscall[SYSCALL_MBOX_SEND] = (long (*)())do_mbox_send;
     syscall[SYSCALL_MBOX_RECV] = (long (*)())do_mbox_recv;
     syscall[SYSCALL_TASKSET] = (long (*)())do_taskset;
+    syscall[SYSCALL_THREAD_CREATE] = (long (*)())do_thread_create;
+    syscall[SYSCALL_THREAD_EXIT] = (long (*)())do_thread_exit;
+    syscall[SYSCALL_THREAD_JOIN] = (long (*)())do_thread_join;
 }
 /************************************************************/
 

@@ -366,3 +366,71 @@ void init_list_head(list_head* head)
 {
     head->next = head->prev = head;
 }
+
+// thread func
+void do_thread_create(int* thread_id, void *target, void* arg)
+{
+    int i;
+    for (i = 0; i < NUM_MAX_TASK; i++) 
+    {
+        if (pcb[i].status == TASK_EXITED) break;
+    }
+    if (i == NUM_MAX_TASK) 
+    {
+        printk("thread create failed, no free\n");
+        *thread_id = -1;
+        return;
+    }
+
+    int cpu_id = get_current_cpu_id();
+    pcb_t *parent = current_running[cpu_id];
+    pcb_t *thread = &pcb[i];
+
+    // Initialize based on parent
+    thread->pid = ++pcb_num;
+    thread->status = TASK_READY;
+    thread->mask = parent->mask; // Share affinity
+    thread->cpu_id = parent->cpu_id;
+    strcpy(thread->name, parent->name); 
+
+    // Allocate NEW stacks (Threads share address space but need unique stacks)
+    thread->user_stack_base = allocUserPage(1) + PAGE_SIZE;
+    thread->kernel_stack_base = allocKernelPage(1) + PAGE_SIZE;
+    init_pcb_stack(thread->kernel_stack_base, thread->user_stack_base,
+                   (ptr_t)target, thread);
+    
+    // Pass argument in a0
+    regs_context_t *pt_regs = (regs_context_t *)(thread->kernel_stack_base - sizeof(regs_context_t));
+    pt_regs->regs[10] = (reg_t)arg; 
+
+    thread->wakeup_time = 0;
+    thread->time_slice = parent->time_slice;
+    thread->time_slice_remaining = thread->time_slice;
+    thread->workload = parent->workload;
+    thread->lock_id = -1;
+    init_list_head(&thread->wait_list);
+    queue_pushfront(&thread->list, &ready_queue);
+
+    *thread_id= thread->pid;
+}
+
+void do_thread_exit(void)
+{
+    int cpu_id = get_current_cpu_id();
+    pcb_t *current = current_running[cpu_id];
+    current->status = TASK_EXITED;
+    if (current->lock_id >= 0) 
+    {
+        do_mutex_lock_release(current->lock_id);
+        current->lock_id = -1;
+    }
+    // Wake up joiners
+    while (current->wait_list.next != &current->wait_list) 
+        do_unblock(current->wait_list.next);
+    do_scheduler();
+}
+
+void do_thread_join(pid_t pid)
+{
+    do_waitpid(pid);
+}

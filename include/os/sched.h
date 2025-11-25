@@ -157,5 +157,10 @@ extern void do_process_show();
 extern pid_t do_getpid();
 /************************************************************/
 
+// -------------- [p3-task5] thread ---------------------
+extern void do_thread_create(int* thread_id, void *func, void* arg);
+extern void do_thread_exit(void);
+extern void do_thread_join(pid_t pid);
+
 #endif
 

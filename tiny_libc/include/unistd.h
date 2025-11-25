@@ -54,5 +54,10 @@ int sys_mbox_send(int mbox_idx, void *msg, int msg_length);
 int sys_mbox_recv(int mbox_idx, void *msg, int msg_length);
 /************************************************************/
 
+// [p3-task5] thread
+void sys_thread_create(int* thread_id, void *func, void* arg);
+void sys_thread_exit(void);
+void sys_thread_join(pid_t pid);
+
 #endif
 

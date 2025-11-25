@@ -261,4 +261,19 @@ void sys_clear(int line1, int line2)
     invoke_syscall(SYSCALL_CLEAR, line1, line2, IGNORE, IGNORE, IGNORE);
 }
 
+// Thread
+void sys_thread_create(int* thread_id, void *func, void* arg)
+{
+    invoke_syscall(SYSCALL_THREAD_CREATE, (long)thread_id, (long)func, (long)arg, IGNORE, IGNORE);
+}
+
+void sys_thread_exit(void)
+{
+    invoke_syscall(SYSCALL_THREAD_EXIT, IGNORE, IGNORE, IGNORE, IGNORE, IGNORE);
+}
+void sys_thread_join(pid_t pid)
+{
+    invoke_syscall(SYSCALL_THREAD_JOIN, pid, IGNORE, IGNORE, IGNORE, IGNORE);
+}
+
 /************************************************************/
