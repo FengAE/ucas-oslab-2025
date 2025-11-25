@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
 {
 #ifndef S_CORE
     assert(argc >= 1);
-    int print_location = (argc == 1) ? 0 : atoi(argv[1]);
+    int print_location = 0;
     sys_move_cursor(0, print_location);
 
     printf("start test multi-core performance\n\r");

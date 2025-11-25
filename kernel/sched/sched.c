@@ -38,6 +38,46 @@ static const char* status_str[] = {
     [TASK_EXITED]  = "EXITED"
 };
 
+void do_scheduler(void)
+{
+    //     // TODO: [p2-task3] Check sleep queue to wake up PCBs
+    int cpu_id = get_current_cpu_id();
+    check_sleeping();
+//     /************************************************************/
+//     /* Do not touch this comment. Reserved for future projects. */
+//     /************************************************************/
+
+//     // TODO: [p2-task1] Modify the current_running pointer.
+    pcb_t* next_pcb = NULL;
+    while (ready_queue.next != &ready_queue) 
+    {
+        next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
+        if (next_pcb->status != TASK_EXITED) 
+            break;
+        next_pcb = NULL; 
+    }
+
+    // no runable task
+    if (next_pcb == NULL) 
+        next_pcb = &pid0_pcb[cpu_id];
+
+    if(next_pcb->status != TASK_EXITED)
+        next_pcb->status = TASK_RUNNING;
+
+    pcb_t* prev_running = current_running[cpu_id];
+    if(prev_running->status == TASK_RUNNING)
+        queue_pushfront(&(prev_running->list), &ready_queue);
+    if(prev_running->status != TASK_EXITED)
+        prev_running->status = TASK_READY;
+
+    current_running[cpu_id] = next_pcb;
+
+    // Have to switch_to, even prev or cur is exited!!
+    // else: current_running changed, but stack not changed --> load fault
+    if (prev_running != next_pcb) 
+        switch_to(prev_running, next_pcb);
+}
+
 void queue_pushfront(list_node_t* t, list_head* queue){
     list_node_t* origfst = queue->next;
     queue->next = t;
@@ -76,28 +116,6 @@ void check_sleeping()
         }
         cur = next;
     }
-}
-
-void do_scheduler(void)
-{
-    check_sleeping();
-    // pcb empty
-    if(ready_queue.next == &ready_queue) return;
-    int cpu_id = get_current_cpu_id();
-    pcb_t* next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
-    if(next_pcb->status != TASK_EXITED)
-        next_pcb->status = TASK_RUNNING;
-
-    if(current_running[cpu_id]->pid != 0)
-        queue_pushfront(&(current_running[cpu_id]->list), &ready_queue);  
-    if(current_running[cpu_id]->status != TASK_EXITED) 
-        current_running[cpu_id]->status = TASK_READY;
-    pcb_t* prev_running = current_running[cpu_id];
-    current_running[cpu_id] = next_pcb; 
-
-    if(prev_running != current_running[cpu_id] && current_running[cpu_id]->status != TASK_EXITED) 
-        switch_to(prev_running, current_running[cpu_id]);
-
 }
 
 void do_sleep(uint32_t sleep_time)

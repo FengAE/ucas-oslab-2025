@@ -409,7 +409,7 @@ int main(void)
 
         // Init screen (QAQ)
         init_screen();   
-        printk("> [MASTER] Core 0 Init Done. Releasing Kernel Lock.\n");
+        // printk("> [MASTER] Core 0 Init Done. Releasing Kernel Lock.\n");
 
         asm volatile(
 			"mv tp, %0"
@@ -424,7 +424,7 @@ int main(void)
         // Wait for Master to finish init
         lock_kernel();  
         init_jmptab();  // to use printk
-        printk("\n> [SLAVE] Core %d started!\n", id);
+        // printk("\n> [SLAVE] Core %d started!\n", id);
         setup_exception();  
         asm volatile(
 			"mv tp, %0"
