@@ -6,6 +6,7 @@
 #include <printk.h>
 #include <assert.h>
 #include <screen.h>
+#include <csr.h>
 
 handler_t irq_table[IRQC_COUNT];
 handler_t exc_table[EXCC_COUNT];
@@ -18,6 +19,13 @@ void interrupt_helper(regs_context_t *regs, uint64_t stval, uint64_t scause)
         irq_table[scause & ~(1ULL<<63)](regs, stval, scause);
     else    // exception
         exc_table[scause](regs, stval, scause);
+}
+
+void handle_irq_soft(regs_context_t *regs, uint64_t stval, uint64_t scause)
+{
+    // clear soft interrupts' bit
+    // to avoid interrupt pending
+    asm volatile("csrc sip, %0" : : "r" (SIE_SSIE));
 }
 
 void handle_irq_timer(regs_context_t *regs, uint64_t stval, uint64_t scause)
@@ -48,6 +56,7 @@ void init_exception()
     for(int i=0; i<IRQC_COUNT; i++)
         irq_table[i] = handle_other;
     irq_table[IRQC_S_TIMER] = handle_irq_timer;
+    irq_table[IRQC_S_SOFT]  = handle_irq_soft;
 
     /* TODO: [p2-task3] set up the entrypoint of exceptions */
     setup_exception();

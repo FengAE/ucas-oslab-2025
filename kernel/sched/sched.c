@@ -88,7 +88,7 @@ void do_scheduler(void)
     if(next_pcb->status != TASK_EXITED)
         next_pcb->status = TASK_RUNNING;
 
-    if(current_running[cpu_id]->status == TASK_RUNNING)
+    if(current_running[cpu_id]->pid != 0)
         queue_pushfront(&(current_running[cpu_id]->list), &ready_queue);  
     if(current_running[cpu_id]->status != TASK_EXITED) 
         current_running[cpu_id]->status = TASK_READY;
@@ -96,7 +96,7 @@ void do_scheduler(void)
     current_running[cpu_id] = next_pcb; 
 
     if(prev_running != current_running[cpu_id] && current_running[cpu_id]->status != TASK_EXITED) 
-        switch_to(prev_running->kernel_sp, current_running[cpu_id]->kernel_sp);
+        switch_to(prev_running, current_running[cpu_id]);
 
 }
 
@@ -114,7 +114,7 @@ void do_sleep(uint32_t sleep_time)
     current_running[cpu_id]->status = TASK_BLOCKED;
     current_running[cpu_id] = next_pcb;
     next_pcb->status = TASK_RUNNING;
-    switch_to(prev_running->kernel_sp, next_pcb->kernel_sp);
+    switch_to(prev_running, next_pcb);
 }
 
 void do_block(list_node_t *pcb_node, list_head *queue)
@@ -129,7 +129,7 @@ void do_block(list_node_t *pcb_node, list_head *queue)
     current_running[cpu_id]->status = TASK_BLOCKED; 
     pcb_t* prev_running = current_running[cpu_id];
     current_running[cpu_id] = next_pcb;
-    switch_to(prev_running->kernel_sp, next_pcb->kernel_sp);
+    switch_to(prev_running, next_pcb);
 }
 
 int do_unblock(list_node_t *node)
@@ -172,7 +172,7 @@ int do_waitpid(pid_t pid)
     current_running[cpu_id]->status = TASK_BLOCKED;
     pcb_t* prev_running = current_running[cpu_id];
     current_running[cpu_id] = next_pcb;
-    switch_to(prev_running->kernel_sp, next_pcb->kernel_sp);
+    switch_to(prev_running, next_pcb);
     
     return pid;
 }

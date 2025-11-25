@@ -125,7 +125,7 @@ extern pcb_t pcb[NUM_MAX_TASK];
 extern pcb_t pid0_pcb[NR_CPUS];
 extern ptr_t pid0_stack[NR_CPUS];
 
-extern void switch_to(reg_t prev, reg_t next);
+extern void switch_to(pcb_t* prev, pcb_t* next);
 extern void init_pcb_stack(
     ptr_t kernel_stack, ptr_t user_stack, ptr_t entry_point,
     pcb_t *pcb);
