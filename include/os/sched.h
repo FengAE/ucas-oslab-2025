@@ -33,7 +33,7 @@
 #include <os/list.h>
 #include <os/smp.h>
 
-#define NUM_MAX_TASK 16
+#define NUM_MAX_TASK 32
 
 /* Dynamic scheduling constants for [p2-task5]*/
 #define TOTAL_T 40        

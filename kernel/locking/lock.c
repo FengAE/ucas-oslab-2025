@@ -226,7 +226,8 @@ void init_mbox(void)
     // Avoid conflicts with user program lock
     mbox_global_mutex_idx = do_mutex_lock_init(MBOX_GLOBAL_LOCK_KEY);
 
-    for (int i = 0; i < MBOX_NUM; i++) {
+    for (int i = 0; i < MBOX_NUM; i++) 
+    {
         mboxes[i].name[0] = '\0';
         mboxes[i].head = 0;
         mboxes[i].tail = 0;

@@ -14,8 +14,6 @@ void task_a(int mbox1, int mbox2)
     char data[DATA_SIZE];
     memset(data, 'A', DATA_SIZE);
     
-    printf("[A] Started : Send to mbox1, Recv from mbox2\n");
-    
     // To force deadlock , we must send first.
     while(1)
     {
@@ -35,8 +33,6 @@ void task_b(int mbox1, int mbox2)
 {
     char data[DATA_SIZE];
     memset(data, 'B', DATA_SIZE);
-
-    printf("[B] Started: Send to mbox2, Recv from mbox1\n");
 
     while(1)
     {
