@@ -222,12 +222,12 @@ void do_exit()
     current_running[cpu_id]->status = TASK_EXITED;
     
     // release locks
-    if (current_running[cpu_id]->lock_id >= 0) 
-        do_mutex_lock_release(current_running[cpu_id]->lock_id);
+    for(int i=0; i<current_running[cpu_id]->lock_ptr; i++)
+        do_mutex_lock_release(current_running[cpu_id]->lock_id[i]);
         
     while(current_running[cpu_id]->wait_list.next != &(current_running[cpu_id]->wait_list))
         do_unblock((list_node_t*)&(current_running[cpu_id]->wait_list));
-    current_running[cpu_id]->lock_id = -1;
+    current_running[cpu_id]->lock_ptr = 0;
     do_scheduler();
 }
 
@@ -247,12 +247,12 @@ int do_kill(pid_t pid)
     pcb[i].list.next->prev = pcb[i].list.prev;
     pcb[i].list.prev->next = pcb[i].list.next;
     pcb[i].status = TASK_EXITED;
-    if(pcb[i].lock_id >= 0)
-        do_mutex_lock_release(pcb[i].lock_id);
+    for(int j=0; j<pcb[i].lock_ptr; j++)
+        do_mutex_lock_release(pcb[i].lock_id[j]);
     while(pcb[i].wait_list.next != &(pcb[i].wait_list))
         do_unblock((list_node_t*)&(pcb[i].wait_list));
         
-    pcb[i].lock_id = -1;
+    pcb[i].lock_ptr = 0;
     return 1;
 }
 
@@ -279,7 +279,7 @@ pid_t do_exec(char *name, int argc, char *argv[])
     pcb[i].pid = ++pcb_num; 
     pcb[i].status = TASK_READY;
     strcpy(pcb[i].name, name);
-    pcb[i].lock_id = -1; // init lock_id
+    pcb[i].lock_ptr = 0; // init lock_id
 
     // set cpu_id and mask
     int cpu_id = get_current_cpu_id();
@@ -381,6 +381,11 @@ void do_thread_create(int* thread_id, void *target, void* arg)
         *thread_id = -1;
         return;
     }
+    if(!target) // want to jump to 0x0
+    {
+        printk("Error: pthread entry can't be 0x0\n");
+        return;
+    }
 
     int cpu_id = get_current_cpu_id();
     pcb_t *parent = current_running[cpu_id];
@@ -407,7 +412,7 @@ void do_thread_create(int* thread_id, void *target, void* arg)
     thread->time_slice = parent->time_slice;
     thread->time_slice_remaining = thread->time_slice;
     thread->workload = parent->workload;
-    thread->lock_id = -1;
+    thread->lock_ptr = 0;
     init_list_head(&thread->wait_list);
     queue_pushfront(&thread->list, &ready_queue);
 
@@ -416,18 +421,7 @@ void do_thread_create(int* thread_id, void *target, void* arg)
 
 void do_thread_exit(void)
 {
-    int cpu_id = get_current_cpu_id();
-    pcb_t *current = current_running[cpu_id];
-    current->status = TASK_EXITED;
-    if (current->lock_id >= 0) 
-    {
-        do_mutex_lock_release(current->lock_id);
-        current->lock_id = -1;
-    }
-    // Wake up joiners
-    while (current->wait_list.next != &current->wait_list) 
-        do_unblock(current->wait_list.next);
-    do_scheduler();
+    do_exit();
 }
 
 void do_thread_join(pid_t pid)

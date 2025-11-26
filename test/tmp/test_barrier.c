@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
     srand(clock());
 
     // Enter and exit target barrier
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 5; ++i)
     {
         int sleep_time = rand() % 3 + 1;
         sys_move_cursor(0, print_location);

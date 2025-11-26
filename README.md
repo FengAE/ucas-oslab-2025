@@ -1,462 +1,467 @@
-## Task1&2
+## Task1 shell指令实现
 
-### switch_to函数
+### Exec
 
-切换上下文、保存寄存器
-
-```asm
-sd   ra, SWITCH_TO_RA(a0)
-...
-ld    ra, SWITCH_TO_RA(a1)
-```
-
-
-
-### PCB初始化
-
-```
-0x50501000 ← pid0_stack
-    ├──────────────┤
-    │  空闲栈空间 │
-    │              │ ← pid0_pcb.kernel_sp 指向此处
-    │ switch_to上下文 │
-    │ regs_context │
-    └──────────────┘
-0x50502000
-```
-
-switch_context：保存各个caller-saved寄存器，初始化假现场只需要保存ra, sp，确保能正确跳转即可
+开始执行某个进程
 
 ```c
-static void init_pcb_stack(
-    ptr_t kernel_stack, ptr_t user_stack, ptr_t entry_point,
-    pcb_t *pcb)
-{
-    regs_context_t *pt_regs =
-        (regs_context_t *)(kernel_stack - sizeof(regs_context_t));
-    memset(pt_regs, 0, sizeof(regs_context_t));
-    pt_regs->sepc = entry_point;
-    pt_regs->sstatus = (reg_t)SR_SPIE;
-    pt_regs->regs[2] = user_stack;  // sp
+pid_t sys_exec(char *name, int argc, char **argv) {
+    // 1. 查找空闲的 PCB
+    pcb_t *pcb = find_free_pcb();	// 遍历
+    if (!pcb) return 0;
 
-    switchto_context_t *pt_switchto =
-        (switchto_context_t *)((ptr_t)pt_regs - sizeof(switchto_context_t));
-    pcb->kernel_sp = (reg_t)pt_switchto; 
-    pcb->user_sp = user_stack;
-    pt_switchto->regs[0] = (reg_t)entry_point;     // ra        
-    pt_switchto->regs[1] = user_stack;  // sp
-}
-
-
-static void init_pcb(void)
-{
-    /* TODO: [p2-task1] load needed tasks and init their corresponding PCB */
-    char pcb_test_tasks[][16] = {"fly", "print1", "print2"};
-    int pcb_test_num = sizeof(pcb_test_tasks) / sizeof(pcb_test_tasks[0]);
-	// 设置pid0_pcb
-    pid0_pcb.pid = 0;
-    pid0_pcb.status = TASK_RUNNING;
-    pid0_pcb.kernel_sp = allocKernelPage(1);
-    pid0_pcb.user_sp = 0;
-    init_pcb_stack(pid0_pcb.kernel_sp, pid0_pcb.user_sp, 0, &pid0_pcb);
-	// 载入各个pcb
-    for(int i=0; i<pcb_test_num; i++)
-    {
-        pcb[i].pid = i+1;
-        pcb[i].entry = load_task_img(pcb_test_tasks[i], tasks, tasknum);
-        init_pcb_stack(allocKernelPage(1), allocUserPage(1),
-                        pcb[i].entry, &pcb[i]);
-        pcb[i].status = TASK_READY;
-        pcb[i].wakeup_time = 0;
-        queue_pushback(&ready_queue, &(pcb[i].list));
-    }
-
-    /* TODO: [p2-task1] remember to initialize 'current_running' */
-    current_running = &pid0_pcb;
-}
-```
-
-
-
-
-
-### do_scheduler
-
-依次执行ready_queue里面的任务
-
-```c
-void do_scheduler(void)
-{
-    if(current_running->status == TASK_READY)
-    {
-        current_running->status = TASK_RUNNING;
-    }
-    else if(current_running->status == TASK_RUNNING)
-    {
-        current_running->status = TASK_READY;
-        if(queue_empty(&ready_queue))   return;
-        pcb_t* prev_running = current_running;
-        move_next(&ready_queue);
-        current_running = (pcb_t*)((char*)cur_ready- 16);
-        current_running->status = TASK_RUNNING;
-        switch_to(prev_running->kernel_sp, current_running->kernel_sp);
-    }
-}
-```
-
-
-
-
-
-
-
-### 进程阻塞与唤醒
-
-| 状态                   | 操作           | 放入的队列          | 调用函数       |
-| ---------------------- | -------------- | ------------------- | -------------- |
-| 获得锁（成功）         | 占用资源       | 无需排队            | ——             |
-| 获取锁失败（锁被占用） | 阻塞自己       | 锁的 `block_queue`  | `do_block()`   |
-| 锁释放时               | 唤醒一个等待者 | 移回 `ready_queue`  | `do_unblock()` |
-| 运行结束               | 等待回收       | 不再放入 ready 队列 | ——             |
-|                        |                |                     |                |
-
-1. 该进程状态设置为BLOCKED
-2. 放入阻塞队列
-
-```  c
-void do_block(list_node_t *pcb_node, list_head *queue)
-{
-    queue_pushback(pcb_node, queue);
-    current_running->status = TASK_BLOCKED;
-    do_scheduler();
-}
-```
-
-3. 等待唤醒
-
-```c
-void do_unblock(list_node_t *pcb_node)
-{
-    pcb_t *pcb = LIST2PCB(pcb_node);
-    queue_popfront(pcb_node);
+    // 2. 初始化 PCB 基本信息
+    pcb->pid = ...;
+    pcb.entry = load_task_img(name, pcb);
     pcb->status = TASK_READY;
+    init_list_head(&pcb->wait_list); // 初始化等待队列    
+
+    // 3. 初始化栈和上下文
+    // A/C-Core: 将 argc 和 argv 拷贝到用户栈，并设置 a0, a1 [cite: 562, 566]
+    init_pcb_stack(pcb, argc, argv);
+
+    // 4. 加入就绪队列
     queue_pushback(&ready_queue, &pcb->list);
+    return pcb->pid;
 }
 ```
 
 
 
-整个流程：
+### Kill
+
+强制结束指定 pid 的进程
 
 ```c
-void do_sleep(uint32_t sleep_time)
-{
-    current_running->wakeup_time = get_timer() + sleep_time;
-    do_block(&current_running->list, &sleep_queue);
-}
-void check_sleeping()
-{
-    list_for_each_safe(&sleep_queue, pcb_node)
-    {
-        pcb_t *pcb = LIST2PCB(pcb_node);
-        if (get_timer() >= pcb->wakeup_time)
-            do_unblock(&pcb->list);
+int sys_kill(pid_t pid) {
+    pcb_t *target = find_pcb_by_pid(pid);
+    if (!target) return 0;
+
+    // 1. 资源清理
+    // 遍历所有锁，如果持有者是该 pid，则释放锁 
+    release_locks_held_by(pid);
+
+    // 2. 唤醒等待该进程的任务 (处理 waitpid)
+    while (!list_empty(&target->wait_list)) {
+        unblock_task(target->wait_list.next);
     }
-}
-```
 
-## Task3&4
-
-### syscall流程
-
-1. 用户程序调用sys_call，**根据系统调用号执行对应的invoke_syscall**
-
-```c
-void sys_set_sche_workload(int workload)
-{
-    /* Report current workload to scheduler for dynamic scheduling */
-    invoke_syscall(SYSCALL_SET_SCHED_WORKLOAD, (long)workload, IGNORE, IGNORE, IGNORE, IGNORE);
-}
-
-static long invoke_syscall(long sysno, long arg0, long arg1, long arg2, long arg3, long arg4)
-{
-    /* TODO: [p2-task3] implement invoke_syscall via inline assembly */
-    long res;
-    asm volatile(
-        "mv     a7, %1\n"
-        "mv     a0, %2\n"
-        "mv     a1, %3\n"
-        "mv     a2, %4\n"
-        "mv     a3, %5\n"
-        "mv     a4, %6\n"
-        "ecall\n"
-        "mv     %0, a0\n"
-        :"=r"(res)
-        :"r"(sysno),"r"(arg0),"r"(arg1),"r"(arg2),"r"(arg3),"r"(arg4)
-    );
-    return res;
-}
-```
-
-
-
-2. ecall指令进行异常处理，进入到stvec内部存储的exception_handler_entry，进行对应的上下文保存
-
-```
-mv    a0, sp        
-csrr  a1, CSR_STVAL
-csrr  a2, CSR_SCAUSE    
-call  interrupt_helper
-```
-
-在进行异常处理前，先传入对应处理的stval和scause
-
-
-
-3. 在irq.c内部，根据**scause区分中断和异常**，并执行对应函数表当中的函数
-
-```c
-void interrupt_helper(regs_context_t *regs, uint64_t stval, uint64_t scause)
-{
-    // TODO: [p2-task3] & [p2-task4] interrupt handler.
-    // call corresponding handler by the value of `scause`
-    if((scause>>63) & 1)    // interrupt
-        irq_table[scause & ~(1ULL<<63)](regs, stval, scause);
-    else    // exception
-        exc_table[scause](regs, stval, scause);
-}
-```
-
-由于系统调用对应的函数为 `exc_table[EXCC_SYSCALL] = handle_syscall;`，故而此时执行handle_syscall
-
-```c
-void handle_syscall(regs_context_t *regs, uint64_t interrupt, uint64_t cause)
-{
-    /* TODO: [p2-task3] handle syscall exception */
-    /**
-     * HINT: call syscall function like syscall[fn](arg0, arg1, arg2),
-     * and pay attention to the return value and sepc
-     */
-     long (*func)(long, long, long) = (long (*)(long, long, long))syscall[regs->regs[17]];	// 在main里面进行了初始化
-     long value = func(regs->regs[10], regs->regs[11], regs->regs[12]);
-     
-     regs->regs[10] = value;
-     
-     regs->sepc += 4;
-}
-```
-
-
-
-### 中断设置寄存器
-
-1. 本实验采用Direct模式，需要在setup_exception设置stvec，此后发生异常与中断都跳转到该地址
-
-```asm
-  /* TODO: [p2-task3] save exception_handler_entry into STVEC */
-  la    t0, exception_handler_entry   
-  csrw  CSR_STVEC, t0   # set stvec（Direct mode）
-```
-
-2. 开启全局中断，即：设置sstatus.SIE=1
-
-```asm
-call  enable_interrupt
-
-ENTRY(enable_interrupt)
-  li t0, SR_SIE
-  csrs CSR_SSTATUS, t0
-  jr ra
-```
-
-3. 在task4中，还引入了时钟中断，故而需要解除时钟中断的屏蔽
-
-本实验可以**直接调用enable_preempt打开所有全局中断**，但是为了更贴合实验，我采用了**只打开时钟中断的enable_time_preempt**
-
-```asm
-ENTRY(enable_preempt)
-  not t0, x0
-  csrs CSR_SIE, t0
-  jr ra
-ENDPROC(enable_preempt)
-
-# -------- Only open Supervisor Timer Interrupt -----------
-ENTRY(enable_time_preempt)
-  li t0, SIE_STIE        
-  csrs CSR_SIE, t0
-  jr ra
-ENDPROC(enable_time_preempt)
-```
-
-
-
-
-
-### 异常保存上下文
-
-1. 刚进入SAVE_CONTEXT时，为USER态，此时栈顶为用户栈栈顶，**需要转为内核栈栈顶**访问此前存放的各种context信息
-
-```asm
-sd    sp, PCB_USER_SP(tp)   # store user_sp
-  ld    sp, PCB_KERNEL_SP(tp) # change to kernel_sp
-  # create space
-  addi  sp, sp, -OFFSET_SIZE
-```
-
-2. 直接保存32个基本寄存器即可，并且还要保存csr寄存器
-
-```asm
-sd    t0,   OFFSET_REG_T0(sp)
-...
-
-csrr  t1,   CSR_SSTATUS
-sd    t1,   OFFSET_REG_SSTATUS(sp)
-csrr  t1,   CSR_SEPC
-sd    t1,   OFFSET_REG_SEPC(sp)
-csrr  t1,   CSR_STVAL
-sd    t1,   OFFSET_REG_SBADADDR(sp)
-csrr  t1,   CSR_SCAUSE
-sd    t1,   OFFSET_REG_SCAUSE(sp)
-```
-
-恢复时对应恢复即可
-
-
-
-
-
-### init_pcb_stack额外操作
-
-1. 设置csr寄存器，便于中断处理
-
-```c
-pt_regs->sepc = entry_point;
-pt_regs->sstatus = SR_SPIE & ~SR_SPP;   // ensure not modify other bits!!
-```
-
-为了让 `sret` 能正确跳回用户态执行，需要：
-
-1. 清除 `SPP` → 返回用户态（U-mode）
-2. 置位 `SPIE` → 允许用户态打开中断（即返回后 SIE = 1）
-
-
-
-2. 初始化pcb的user_stack，用于上下文保存和恢复
-
-```c
-pcb->user_sp = user_stack;
-```
-
-
-
-
-
-### 睡眠进程的唤醒
-
-**每次进入do_scheduler调度，都会check_sleeping()**，唤醒达到wakeup_time的进程，并放入ready_queue末尾
-
-```c
-void do_scheduler(void)
-{
-//     // TODO: [p2-task3] Check sleep queue to wake up PCBs
-    check_sleeping();
-    ...
-}
-void check_sleeping()
-{
-    list_node_t* cur = sleep_queue.next;
-    int len = 0;
-    while(cur != &sleep_queue)
-    {
-        cur = cur->next;
-        len++;
+    // 3. 修改状态并调度
+    // 如果进程在就绪队列或睡眠队列，将其移除
+    remove_from_queues(target);
+    target->status = TASK_EXITED;
+    // 如果杀掉的是当前进程，需要调度
+    if (target == current_running) {
+        do_scheduler();
     }
-    uint64_t cur_time = get_timer();
-    cur = sleep_queue.next;
-    for(int i=0; i<len; i++)
-    {
-        queue_popfront(cur);
-        if((LIST_TO_PCB(cur))->wakeup_time <= cur_time)
-            queue_pushback(&ready_queue, cur);
-        else
-            queue_pushback(&sleep_queue, cur);
-    }
+    return 1;
 }
 ```
 
+必须检查它是否持有内核资源（如互斥锁）。如果不处理，等待该锁的其他进程将陷入死锁。
 
 
-task3和task4区别就在于**每次进入do_scheduler的时机不同**：
 
-（1）task3：在每次**用户程序内部进行sys_yield**主动让出进程
+### Waitpid
 
-（2）task4：每次**时钟中断时**，调用handle_irq_timer函数时进行调度
+当前进程**阻塞等待**某个进程结束
 
 ```c
-void handle_irq_timer(regs_context_t *regs, uint64_t stval, uint64_t scause)
-{
-    // TODO: [p2-task4] clock interrupt handler.
-    // Note: use bios_set_timer to reset the timer and remember to reschedule
-    set_timer(get_ticks() + TIMER_INTERVAL);    // Supervisor mode
+int sys_waitpid(pid_t pid) {
+    pcb_t *target = find_pcb_by_pid(pid);
+    // 1. 如果进程不存在或已经退出，直接返回
+    if (!target || target->status == TASK_EXITED) {
+        return pid;
+    }
+    // 2. 阻塞当前进程
+    current_running->status = TASK_BLOCKED;
+    
+    // 3. 将当前进程加入目标进程的等待队列 
+    queue_pushback(&target->wait_list, &current_running->list);
     do_scheduler();
+    return pid;
 }
 ```
 
-## Task5
 
-### 时间片相关定义
 
-这里需要我们实现一个复杂调度算法，实现5个飞机程序的同步飞行。在此处由于需要分配时间片，在PCB结构体的定义中我添加了几个结构。
+### Exit
 
 ```c
-int workload;	
-int check_point;
-int time_slice;				// 分配的时间片
-int time_slice_remaining;	// 剩余的时间片
-```
+void sys_exit(void) {
+    // 1. 资源回收, 释放持有的锁 
+    release_locks_held_by(current_running->pid);
 
-同时，在每次时钟中断进行`do_scheduler`调度时，需要模拟时间片消耗-1：
-
-```c
-void handle_irq_timer(regs_context_t *regs, uint64_t stval, uint64_t scause)
-{
-    // TODO: [p2-task4] clock interrupt handler.
-    // Note: use bios_set_timer to reset the timer and remember to reschedule
-    set_timer(get_ticks() + TIMER_INTERVAL);    // Supervisor mode
-    if(current_running != NULL && current_running->status == TASK_RUNNING)
-    {
-        if(current_running->time_slice_remaining > 0)
-            current_running->time_slice_remaining--;
+    // 2. 唤醒等待者
+    // 将 wait_list 中的所有进程状态设为 READY 并加入就绪队列 
+    while (!list_empty(&current_running->wait_list)) {
+        unblock_task(current_running->wait_list.next);
     }
+    current_running->status = TASK_EXITED;
     do_scheduler();
 }
 ```
 
 
 
-### 调度算法
+## Task2 同步原语实现
 
-在每次进入`do_scheduler`时，需要进行时间片的分配更新。这里我采用一个虚拟进度方法：**从起点到check_point为50%进度，从check_point到终点为50%进度**。
+### 条件变量与屏障
 
-每次更新时：
+1、屏障
 
-1. 计算5个进程的平均进度`avg_progress`
-
-2. 对每个进程计算当前进度与平均进度的差值，**对于差值<0（落后于平均进度）的，给予时间片的激励**
-
-3. 对于超前的进程给予惩罚，不过需要保证不小于自定义的 `T_MIN`
-
-   
-
-这里需要注意一点，怎么保证5个飞机同时到达终点又同时回到起点出发呢？
-
-对此分配时间片时需要先遍历所有进程，如果发现有的进程在起点而有的进程在终点，则**将在终点的进程阻塞**（分配时间片为0）
+维护一个计数器 `count` 和目标值 `goal`。每当进程到达屏障调用 `wait`，计数器加 1 并阻塞该进程。当 `count == goal` 时，唤醒所有阻塞的进程 。
 
 ```c
-...
-else if (start_line_barrier_active && vp == 0)
+struct barrier {
+    int goal;      // 目标到达数量
+    int count;     // 当前到达数量
+    list_head wait_queue; // 等待队列
+};
+
+void barrier_wait(int barrier_id) 
 {
-    tasks[i]->time_slice = tasks[i]->time_slice_remaining = 0;
-    continue;
+    struct barrier *b = get_barrier(barrier_id);
+    b->count++;
+    if (b->count >= b->goal) {
+        // 最后一个到达，唤醒所有人
+        b->count = 0; 
+        broadcast(b->wait_queue)
+    } else {
+        // 未全部到达，阻塞当前进程
+        current_running->status = TASK_BLOCKED;
+        queue_pushback(&b->wait_queue, &current_running->list);
+        do_scheduler();
+    }
 }
 ```
+
+2、条件变量
+
+```c
+list_head cond_queue;
+void cond_wait(int cond_id, int mutex_id) {
+    mutex_unlock(mutex_id);
+    
+    // 阻塞当前进程并加入条件变量等待队列
+    current_running->status = TASK_BLOCKED;
+    list_add(&cond_queue[cond_id], &current_running->list);
+    do_scheduler();
+
+    mutex_lock(mutex_id);
+}
+
+void cond_signal(int cond_id) {
+    if (!list_empty(&cond_queue[cond_id])) {
+        unblock_task(cond_queue[cond_id].next);
+    }
+}
+
+void cond_broadcast(int cond_id) {
+    // 唤醒队列中所有进程 [cite: 199]
+    while (!list_empty(&cond_queue[cond_id])) {
+        unblock_task(cond_queue[cond_id].next);
+    }
+}
+```
+
+如果发生中断？	加锁保护
+
+多核访问：
+
+1. **大内核锁**策略：进入内核即加锁。即使发生中断触发调度，其他核心也无法获取该锁，从而保证数据安全 	
+2. **细粒度锁**，通常在获取自旋锁时需要**关闭本地中断**，防止当前核在持有锁时被中断打断并调度到另一个试图获取同一把锁的进程（导致死锁）。
+
+
+
+
+
+
+
+### Mailbox
+
+Mailbox 是一个有界缓冲区（Bounded Buffer），遵循 FIFO 原则。包含发送者（Producer）和接收者（Consumer）。
+
+**Send**：发送方将消息存入信箱。如果信箱满（空间不足），发送方阻塞 。
+
+**Recv**：接收方从信箱取出消息。如果信箱空（数据不足），接收方阻塞 。
+
+```
+           STR_MBOX                         POS_MBOX
+   ┌────────────────────┐           ┌─────────────────────┐
+   │  Client            │           │        Server       │
+   │  send MsgHeader    │  ---->    │  recv MsgHeader     │
+   │  send Content      │           │  recv Content       │
+   │                    │           │                     │
+   │  recv position <---│-----------│  send position      │
+   └────────────────────┘           └─────────────────────┘
+```
+
+1、数据互斥
+
+自旋锁（Spinlock）保护 Mailbox 结构体。在进行 `sys_mbox_send` 或 `sys_mbox_recv` 的数据拷贝操作前加锁，操作后释放锁
+
+2、同步机制（生产者消费者模型）
+
+条件变量使用
+
+
+
+
+
+
+
+
+
+## Task3 双核启动
+
+### boot启动
+
+#### **bootblock.S**
+
+当上电后，Core 0 和 Core 1 同时启动，都运行 `bootblock.S`。
+
+Core 1需要一直等待核间中断，当中断来临时进入stvel设置的kernel，开始设置Core 1的环境
+
+开头需要关中断，因为硬件复位状态不确定，此时stvec还没有设置好，如果不关中断，可能会跑到一个不符合预期的地址
+
+```asm
+main:
+	fence
+    // a0 is mhartid
+	bnez a0, secondary
+	# cpu0: set bois fun
+	# ......
+# cpu1:
+secondary:
+	# disable all interrupts
+	li 		t0, SR_SIE
+	csrc	sstatus, t0	
+	# set stvec
+	la		t0, kernel
+	csrw	stvec, t0
+	# enable software interrupts
+	li		t0, SIE_SSIE
+	csrs	sie, t0
+	li 		t0, SR_SIE
+	csrs 	sstatus, t0
+wait_for_wakeup:
+	wfi
+	j wait_for_wakeup
+```
+
+
+
+#### **head.S**
+
+```asm
+#define KERNEL_STACK		0x50500000
+#define KERNEL_STACK_2  0x50501000
+.section ".entry_function","ax"
+ENTRY(_start)
+  # ......
+
+clear_bss:
+	# ......
+end_clear_bss:
+	# ......
+secondary_start:
+  /* Slave Core Stack Setup */
+  /* Use a different stack area to avoid conflict */
+  la    sp, KERNEL_STACK_2
+  call  main
+
+loop:
+  wfi
+  j loop
+
+END(_start)
+```
+
+Core 0：初始化bss段
+
+Core 1：由于c环境已经初始化，只需要跳到main即可。注意这里的内核栈需要另外设置防止冲突
+
+
+
+#### **main**
+
+```c
+int main(void)
+{
+    int id = get_current_cpu_id();
+    if(id == 0)	// Core 0
+    {
+        init_locks();
+        smp_init();
+        lock_kernel();
+        // ....
+        unlock_kernel();
+        wakeup_other_hart(NULL);
+    }
+    else
+    {
+        lock_kernel();
+        setup_exception();
+        unlock_kernel();
+    }
+}
+```
+
+在Core 0已经实现task、PCB、锁的初始化，故而在唤醒Core 1时，只需要设置中断初始化即可
+
+使用`send_ipi`进行软件中断后，**会跳转到Core 1设置的stvel，即kernel处**，进行Core 1的内核初始化
+
+注意：Core 1在unlock后，需要清除SIE位，因为此时SIE依然是1，操作系统会认为还有一个pending的软件中断没有处理，会在enable_preempt后，直接进入软件中断处理，而非处理时钟中断进行调度
+
+
+
+### 从核中断
+
+大内核锁保证，同一时间只有一个核能执行内核代码。所以在进入内核态(trap_entry)时上锁，离开时解锁
+
+```asm
+ENTRY(ret_from_exception)
+  call  unlock_kernel
+  RESTORE_CONTEXT
+  sret
+ENDPROC(ret_from_exception)
+
+ENTRY(exception_handler_entry)
+  SAVE_CONTEXT
+
+  call  lock_kernel
+  
+  mv    a0, sp        
+  csrr  a1, CSR_STVAL
+  csrr  a2, CSR_SCAUSE    
+  call  interrupt_helper
+  j     ret_from_exception
+
+ENDPROC(exception_handler_entry)
+```
+
+这里，由于`lock_kernel`作为一个函数会修改寄存器，故而**需要在`SAVE_CONTEXT`后进行调用**，否则保存的上下文就是被修改过的数据
+
+
+
+### 独立变量
+
+对于双核系统来说，`current_running` 和 `pid0_pcb` 均是各自独立的，所以要将原来单变量的改为数组。
+
+```c
+extern pcb_t pid0_pcb[NR_CPUS];
+extern ptr_t pid0_stack[NR_CPUS];
+extern pcb_t* current_running[NR_CPUS];
+```
+
+原来每次对`current_running` 的操作，只需要先通过 `get_current_cpu_id`()  获取`cpu_id`，再操作对应的 `current_running[cpu_id]` 即可。
+
+
+
+
+
+## Task4 绑核操作
+
+这里需要实现一个taskset指令，将进程绑定在某个核
+
+为此，需要在pcb中添加mask和cpu_id成员
+
+```c
+int mask;   // which cpu allow to run
+int cpu_id;	// running on which cpu
+```
+
+1、对于shell指令，只需要能解析特定taskset指令即可。当执行taskset指令时，直接更新对应的mask
+
+2、修改调度逻辑，从尾到头遍历，删除exited的进程，略过不满足mask的进程
+
+```c
+// From tail to head, search: not exit and satisfy mask
+while (cur != &ready_queue) 
+{
+    pcb_t* candidate = LIST_TO_PCB(cur);
+    list_node_t* prev_node = cur->prev;
+    if(candidate->status == TASK_EXITED)
+    {
+        // remove from ready_queue
+        prev_node->next = cur->next;
+        cur->next->prev = prev_node;
+    }
+    else if(candidate->mask & (1<<cpu_id))  // satisfy mask
+    {
+        prev_node->next = cur->next;
+        cur->next->prev = prev_node;
+        next_pcb = candidate;
+        break;
+    }
+    cur = prev_node;
+}
+```
+
+
+
+
+
+## Task5 死锁避免
+
+通过在读mbox1、写mbox2时，创建两个进程分别进行读写来避免死锁。
+
+由于目前还没有实现页表，线程的实现和进程基本没什么区别，只是注意：
+
+1. 创建线程的 entry 需要手动传入，而非在task里面寻找
+2. 线程传参也可以自定义
+
+```c
+void do_thread_create(int* thread_id, void *target, void* arg)
+{
+    int i;
+    for (i = 0; i < NUM_MAX_TASK; i++) 
+    {
+        if (pcb[i].status == TASK_EXITED) break;
+    }
+    if (i == NUM_MAX_TASK) 
+    {
+        printk("thread create failed, no free\n");
+        *thread_id = -1;
+        return;
+    }
+    if(!target) // want to jump to 0x0
+    {
+        printk("Error: pthread entry can't be 0x0\n");
+        return;
+    }
+
+    int cpu_id = get_current_cpu_id();
+    pcb_t *parent = current_running[cpu_id];
+    pcb_t *thread = &pcb[i];
+
+    // Initialize based on parent
+    thread->pid = ++pcb_num;
+    thread->status = TASK_READY;
+    thread->mask = parent->mask; // Share affinity
+    thread->cpu_id = parent->cpu_id;
+    strcpy(thread->name, parent->name); 
+
+    // Allocate NEW stacks (Threads share address space but need unique stacks)
+    thread->user_stack_base = allocUserPage(1) + PAGE_SIZE;
+    thread->kernel_stack_base = allocKernelPage(1) + PAGE_SIZE;
+    init_pcb_stack(thread->kernel_stack_base, thread->user_stack_base,
+                   (ptr_t)target, thread);
+    
+    // Pass argument in a0
+    regs_context_t *pt_regs = (regs_context_t *)(thread->kernel_stack_base - sizeof(regs_context_t));
+    pt_regs->regs[10] = (reg_t)arg; 
+
+    thread->wakeup_time = 0;
+    thread->time_slice = parent->time_slice;
+    thread->time_slice_remaining = thread->time_slice;
+    thread->workload = parent->workload;
+    thread->lock_ptr = 0;
+    init_list_head(&thread->wait_list);
+    queue_pushfront(&thread->list, &ready_queue);
+
+    *thread_id= thread->pid;
+}
+```
+

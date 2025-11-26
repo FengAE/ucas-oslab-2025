@@ -106,7 +106,8 @@ typedef struct pcb
     int check_point;
     int time_slice;
     int time_slice_remaining;
-    int lock_id;
+    int lock_id[16];
+    int lock_ptr;
 } pcb_t;
 
 /* ready queue to run */

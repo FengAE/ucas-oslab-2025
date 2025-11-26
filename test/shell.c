@@ -62,7 +62,8 @@ int main(void)
         // TODO [P3-task1]: call syscall to read UART port 
         // TODO [P3-task1]: parse input
         // note: backspace maybe 8('\b') or 127(delete)
-        while((ch = sys_getchar()) == -1);
+        while((ch = sys_getchar()) == -1)
+            sys_yield();
         if(ch == '\r' || ch == '\n')
         {
             printf("\n");

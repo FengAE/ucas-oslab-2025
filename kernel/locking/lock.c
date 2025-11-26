@@ -70,7 +70,8 @@ void do_mutex_lock_acquire(int mlock_idx)
     int cpu_id = get_current_cpu_id();
     if(mlocks[mlock_idx].lock.status == UNLOCKED)
     {
-        current_running[cpu_id]->lock_id = mlock_idx;
+        pcb_t* pcb = current_running[cpu_id];
+        pcb->lock_id[pcb->lock_ptr++] = mlock_idx;
         mlocks[mlock_idx].lock.status = LOCKED;
     }
     else
