@@ -15,15 +15,6 @@ ptr_t pid0_stack[NR_CPUS];
 pcb_t pid0_pcb[NR_CPUS];
 pcb_t* current_running[NR_CPUS];
 
-// pcb_t pid0_pcb = {
-//     .pid = 0,
-//     .kernel_sp = (ptr_t)pid0_stack,
-//     .user_sp = (ptr_t)pid0_stack,
-//     .status = TASK_RUNNING,
-//     .name = "IDLE"
-// };
-
-
 // OFFSET: based on sched.h
 #define OFFSETOF_LIST 16
 #define LIST_TO_PCB(node) (pcb_t*)((char*)node - OFFSETOF_LIST)

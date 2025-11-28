@@ -6,6 +6,8 @@
 // ---------------------------------------------
 #include <type.h>
 #include <common.h>
+#include <stdint.h>
+
 #define KERNEL_JMPTAB_BASE 0x51ffff00
 typedef enum {
     CONSOLE_PUTSTR,
@@ -25,7 +27,9 @@ typedef enum {
     MUTEX_ACQ,
     MUTEX_RELEASE,
     NUM_ENTRIES,
+    WRITE,
     CLEAR,
+    REFLUSH,
     EXEC,
     EXIT,
     KILL,
@@ -36,7 +40,6 @@ typedef enum {
     BARRIER_WAIT,
     BARRIER_DESTROY
 } jmptab_idx_t;
-
 
 
 static inline long call_jmptab(long which, long arg0, long arg1, long arg2, long arg3, long arg4)

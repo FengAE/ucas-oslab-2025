@@ -361,6 +361,17 @@ static void init_syscall(void)
 }
 /************************************************************/
 
+/*
+ * Once a CPU core calls this function,
+ * it will stop executing!
+ */
+static void kernel_brake(void)
+{
+    disable_interrupt();
+    while (1)
+        __asm__ volatile("wfi");
+}
+
 int main(void)
 {
     int id = get_current_cpu_id();
@@ -413,6 +424,17 @@ int main(void)
         init_syscall();
         printk("> [INIT] System call initialized successfully.\n");
 
+        /*
+         * Just start kernel with VM and print this string
+         * in the first part of task 1 of project 4.
+         * NOTE: if you use SMP, then every CPU core should call
+         *  `kernel_brake()` to stop executing!
+         */
+        printk("> [INIT] CPU #%u has entered kernel with VM!\n",
+            (unsigned int)get_current_cpu_id());
+        // TODO: [p4-task1 cont.] remove the brake and continue to start user processes.
+        kernel_brake();
+
         // Init screen (QAQ)
         init_screen();   
         // printk("> [MASTER] Core 0 Init Done. Releasing Kernel Lock.\n");
@@ -448,7 +470,6 @@ int main(void)
     // TODO: [p2-task4] Setup timer interrupt and enable all interrupt globally
     // NOTE: The function of sstatus.sie is different from sie's
     set_timer(get_ticks() + TIMER_INTERVAL);
-
     // Infinite while loop, where CPU stays in a low-power state (QAQQQQQQQQQQQ)
     while (1)
     {
@@ -464,4 +485,3 @@ int main(void)
 
     return 0;
 }
-

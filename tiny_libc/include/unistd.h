@@ -5,6 +5,9 @@
 typedef int32_t pid_t;
 
 void sys_clear(int line1, int line2);
+typedef pid_t pthread_t;
+typedef uint64_t size_t;
+
 void sys_sleep(uint32_t time);
 void sys_yield(void);
 void sys_write(char *buff);
@@ -59,5 +62,13 @@ void sys_thread_create(int* thread_id, void *func, void* arg);
 void sys_thread_exit(void);
 void sys_thread_join(pid_t pid);
 
-#endif
 
+/* TODO: [P4 task4] free memory*/
+size_t sys_free_mem(void);
+/* TODO: [P4 task5] pipe*/
+int sys_pipe_open(const char *name);
+long sys_pipe_give_pages(int pipe_idx, void *src, size_t length);
+long sys_pipe_take_pages(int pipe_idx, void *dst, size_t length);
+/************************************************************/
+
+#endif

@@ -68,7 +68,6 @@ typedef enum {
     TASK_EXITED,
 } task_status_t;
 
-
 /* Process Control Block */
 typedef struct pcb
 {

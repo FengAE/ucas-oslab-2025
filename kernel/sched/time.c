@@ -30,8 +30,3 @@ void latency(uint64_t time)
     while (get_timer() - begin_time < time);
     return;
 }
-
-// void check_sleeping(void)
-// {
-//     // TODO: [p2-task3] Pick out tasks that should wake up from the sleep queue
-// }
