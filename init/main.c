@@ -20,15 +20,15 @@
 
 extern void ret_from_exception();
 #define VERSION_BUF 50
-#define TASK_INFO_LOC 0x50200200
-#define TASK_NUM_LOC 0x502001fe
-#define TASK_INFO_START_LOC 0x502001f8
-#define BATCH_START_SEC_LOC 0x502001f4
-#define BUFFER 0x59000000
+#define TASK_INFO_LOC 0xffffffc050200200
+#define TASK_NUM_LOC 0xffffffc0502001fe
+#define TASK_INFO_START_LOC 0xffffffc0502001f8
+#define BATCH_START_SEC_LOC 0xffffffc0502001f4
+#define BUFFER 0xffffffc059000000
 
 // --------------- [p1-task5] ------------------
 // The same revise in /tiny_libc/include
-#define BATCH_DATA_LOC 0x59100000
+#define BATCH_DATA_LOC 0xffffffc059100000
 // ---------------------------------------------
 
 int version = 2; // version must between 0 and 9
@@ -285,7 +285,7 @@ static void init_pcb(void)
     for (int i = 0; i < NR_CPUS; i++)
     {
         pcb_t *idle = &pid0_pcb[i];
-        ptr_t stack_top = allocKernelPage(1) + PAGE_SIZE;
+        ptr_t stack_top = allocPage(1) + PAGE_SIZE;
         idle->pid = 0;
         idle->status = TASK_RUNNING;
         idle->cursor_x = 0;
@@ -314,8 +314,8 @@ static void init_pcb(void)
     current_running[0] = &pid0_pcb[0];
     current_running[1] = &pid0_pcb[1];
 
-    char* argv[1] = {"shell"};
-    do_exec("shell", 1, argv);
+    // char* argv[1] = {"shell"};
+    // do_exec("shell", 1, argv);
     // char* argv1[1] = {"waitpid"};
     // do_exec("waitpid", 1, argv1);
 }

@@ -6,8 +6,8 @@
 #include <asm.h>
 #include <csr.h>
 
-#define KERNEL_STACK		0x50500000
-#define KERNEL_STACK_2  0x50501000
+#define KERNEL_STACK		0xffffffc50500000
+#define KERNEL_STACK_2  0xffffffc50501000
 .section ".entry_function","ax"
 ENTRY(_start)
   /* Mask all interrupts */
@@ -29,13 +29,14 @@ clear_bss:
 
   /* TODO: [p1-task2] setup C environment */
 end_clear_bss:
-  la    sp, KERNEL_STACK
+  la    tp, pid0_pcb
+  li    sp, KERNEL_STACK
   call  main
 
 secondary_start:
   /* Slave Core Stack Setup */
   /* Use a different stack area to avoid conflict */
-  la    sp, KERNEL_STACK_2
+  li    sp, KERNEL_STACK_2
   call  main
 
 loop:

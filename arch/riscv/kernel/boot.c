@@ -38,6 +38,7 @@ static void ARRTIBUTE_BOOTKERNEL map_page(uint64_t va, uint64_t pa, PTE *pgdir)
 static void ARRTIBUTE_BOOTKERNEL enable_vm()
 {
     // write satp to enable paging
+    // after this, program use virtual address
     set_satp(SATP_MODE_SV39, 0, PGDIR_PA >> NORMAL_PAGE_SHIFT);
     local_flush_tlb_all();
 }
@@ -77,7 +78,7 @@ int ARRTIBUTE_BOOTKERNEL boot_kernel(unsigned long mhartid)
     }
 
     /* enter kernel */
-    ((kernel_entry_t)pa2kva(_start))(mhartid);
+    ((kernel_entry_t)pa2kva((uintptr_t)_start))(mhartid);
 
     return 0;
 }

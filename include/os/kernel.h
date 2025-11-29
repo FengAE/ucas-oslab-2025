@@ -5,7 +5,7 @@
 #include <common.h>
 
 // --------------- [p1-task5] ------------------
-#define BATCH_DATA_LOC 0x59100000
+#define BATCH_DATA_LOC 0xffffffc059100000
 // ---------------------------------------------
 #include <pgtable.h>
 

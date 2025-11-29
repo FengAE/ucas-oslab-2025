@@ -16,16 +16,16 @@ Disassembly of section .text:
     5020001c:	1fc5051b          	addiw	a0,a0,508 # 502001fc <os_size_loc>
     50200020:	00051583          	lh	a1,0(a0)
     50200024:	48ad                	li	a7,11
-    50200026:	50201537          	lui	a0,0x50201
+    50200026:	50202537          	lui	a0,0x50202
     5020002a:	4605                	li	a2,1
     5020002c:	fff50097          	auipc	ra,0xfff50
     50200030:	fd4080e7          	jalr	-44(ra) # 50150000 <bios_func_entry>
-    50200034:	7cd0006f          	j	50201000 <kernel>
+    50200034:	7cd0106f          	j	50202000 <kernel>
 
 0000000050200038 <secondary>:
     50200038:	4289                	li	t0,2
     5020003a:	1002b073          	csrc	sstatus,t0
-    5020003e:	502012b7          	lui	t0,0x50201
+    5020003e:	502022b7          	lui	t0,0x50202
     50200042:	10529073          	csrw	stvec,t0
     50200046:	4289                	li	t0,2
     50200048:	1042a073          	csrs	sie,t0

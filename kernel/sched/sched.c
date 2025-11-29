@@ -278,8 +278,8 @@ pid_t do_exec(char *name, int argc, char *argv[])
     if(current_running[cpu_id]->pid > 1)    // not launched by shell or pid0
         pcb[i].mask = current_running[cpu_id]->mask;    // the same with parent
 
-    pcb[i].kernel_stack_base = allocKernelPage(1)+PAGE_SIZE;
-    pcb[i].user_stack_base = allocUserPage(1)+PAGE_SIZE;
+    pcb[i].kernel_stack_base = allocPage(1)+PAGE_SIZE;
+    pcb[i].user_stack_base = allocPage(1)+PAGE_SIZE;
     init_pcb_stack(pcb[i].kernel_stack_base, pcb[i].user_stack_base,
                    pcb[i].entry, &pcb[i]);
     
@@ -361,53 +361,53 @@ void init_list_head(list_head* head)
 // thread func
 void do_thread_create(int* thread_id, void *target, void* arg)
 {
-    int i;
-    for (i = 0; i < NUM_MAX_TASK; i++) 
-    {
-        if (pcb[i].status == TASK_EXITED) break;
-    }
-    if (i == NUM_MAX_TASK) 
-    {
-        printk("thread create failed, no free\n");
-        *thread_id = -1;
-        return;
-    }
-    if(!target) // want to jump to 0x0
-    {
-        printk("Error: pthread entry can't be 0x0\n");
-        return;
-    }
+    // int i;
+    // for (i = 0; i < NUM_MAX_TASK; i++) 
+    // {
+    //     if (pcb[i].status == TASK_EXITED) break;
+    // }
+    // if (i == NUM_MAX_TASK) 
+    // {
+    //     printk("thread create failed, no free\n");
+    //     *thread_id = -1;
+    //     return;
+    // }
+    // if(!target) // want to jump to 0x0
+    // {
+    //     printk("Error: pthread entry can't be 0x0\n");
+    //     return;
+    // }
 
-    int cpu_id = get_current_cpu_id();
-    pcb_t *parent = current_running[cpu_id];
-    pcb_t *thread = &pcb[i];
+    // int cpu_id = get_current_cpu_id();
+    // pcb_t *parent = current_running[cpu_id];
+    // pcb_t *thread = &pcb[i];
 
-    // Initialize based on parent
-    thread->pid = ++pcb_num;
-    thread->status = TASK_READY;
-    thread->mask = parent->mask; // Share affinity
-    thread->cpu_id = parent->cpu_id;
-    strcpy(thread->name, parent->name); 
+    // // Initialize based on parent
+    // thread->pid = ++pcb_num;
+    // thread->status = TASK_READY;
+    // thread->mask = parent->mask; // Share affinity
+    // thread->cpu_id = parent->cpu_id;
+    // strcpy(thread->name, parent->name); 
 
-    // Allocate NEW stacks (Threads share address space but need unique stacks)
-    thread->user_stack_base = allocUserPage(1) + PAGE_SIZE;
-    thread->kernel_stack_base = allocKernelPage(1) + PAGE_SIZE;
-    init_pcb_stack(thread->kernel_stack_base, thread->user_stack_base,
-                   (ptr_t)target, thread);
+    // // Allocate NEW stacks (Threads share address space but need unique stacks)
+    // thread->user_stack_base = allocUserPage(1) + PAGE_SIZE;
+    // thread->kernel_stack_base = allocKernelPage(1) + PAGE_SIZE;
+    // init_pcb_stack(thread->kernel_stack_base, thread->user_stack_base,
+    //                (ptr_t)target, thread);
     
-    // Pass argument in a0
-    regs_context_t *pt_regs = (regs_context_t *)(thread->kernel_stack_base - sizeof(regs_context_t));
-    pt_regs->regs[10] = (reg_t)arg; 
+    // // Pass argument in a0
+    // regs_context_t *pt_regs = (regs_context_t *)(thread->kernel_stack_base - sizeof(regs_context_t));
+    // pt_regs->regs[10] = (reg_t)arg; 
 
-    thread->wakeup_time = 0;
-    thread->time_slice = parent->time_slice;
-    thread->time_slice_remaining = thread->time_slice;
-    thread->workload = parent->workload;
-    thread->lock_ptr = 0;
-    init_list_head(&thread->wait_list);
-    queue_pushfront(&thread->list, &ready_queue);
+    // thread->wakeup_time = 0;
+    // thread->time_slice = parent->time_slice;
+    // thread->time_slice_remaining = thread->time_slice;
+    // thread->workload = parent->workload;
+    // thread->lock_ptr = 0;
+    // init_list_head(&thread->wait_list);
+    // queue_pushfront(&thread->list, &ready_queue);
 
-    *thread_id= thread->pid;
+    // *thread_id= thread->pid;
 }
 
 void do_thread_exit(void)
