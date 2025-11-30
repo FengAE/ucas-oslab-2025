@@ -63,6 +63,8 @@ extern void* kmalloc(size_t size);
 extern void share_pgtable(uintptr_t dest_pgdir, uintptr_t src_pgdir);
 extern uintptr_t alloc_page_helper(uintptr_t va, uintptr_t pgdir);
 
+void recycle_page_table(uintptr_t pgdir);
+
 // TODO [P4-task4]: shm_page_get/dt */
 uintptr_t shm_page_get(int key);
 void shm_page_dt(uintptr_t addr);

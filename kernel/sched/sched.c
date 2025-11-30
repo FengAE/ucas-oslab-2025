@@ -82,7 +82,11 @@ void do_scheduler(void)
     // Have to switch_to, even prev or cur is exited!!
     // else: current_running changed, but stack not changed --> load fault
     if (prev_running != next_pcb) 
+    {
+        set_satp(SATP_MODE_SV39, next_pcb->pid, kva2pa(next_pcb->pgdir) >> NORMAL_PAGE_SHIFT);
+        local_flush_tlb_all();
         switch_to(prev_running, next_pcb);
+    }
 }
 
 void queue_pushfront(list_node_t* t, list_head* queue){
@@ -139,6 +143,9 @@ void do_sleep(uint32_t sleep_time)
     current_running[cpu_id]->status = TASK_BLOCKED;
     current_running[cpu_id] = next_pcb;
     next_pcb->status = TASK_RUNNING;
+
+    set_satp(SATP_MODE_SV39, next_pcb->pid, kva2pa(next_pcb->pgdir) >> NORMAL_PAGE_SHIFT);
+    local_flush_tlb_all();
     switch_to(prev_running, next_pcb);
 }
 
@@ -154,6 +161,9 @@ void do_block(list_node_t *pcb_node, list_head *queue)
     current_running[cpu_id]->status = TASK_BLOCKED; 
     pcb_t* prev_running = current_running[cpu_id];
     current_running[cpu_id] = next_pcb;
+
+    set_satp(SATP_MODE_SV39, next_pcb->pid, kva2pa(next_pcb->pgdir) >> NORMAL_PAGE_SHIFT);
+    local_flush_tlb_all();
     switch_to(prev_running, next_pcb);
 }
 
@@ -202,6 +212,9 @@ int do_waitpid(pid_t pid)
     current_running[cpu_id]->status = TASK_BLOCKED;
     pcb_t* prev_running = current_running[cpu_id];
     current_running[cpu_id] = next_pcb;
+
+    set_satp(SATP_MODE_SV39, next_pcb->pid, kva2pa(next_pcb->pgdir) >> NORMAL_PAGE_SHIFT);
+    local_flush_tlb_all();
     switch_to(prev_running, next_pcb);
     
     return pid;
@@ -219,6 +232,11 @@ void do_exit()
     while(current_running[cpu_id]->wait_list.next != &(current_running[cpu_id]->wait_list))
         do_unblock((list_node_t*)&(current_running[cpu_id]->wait_list));
     current_running[cpu_id]->lock_ptr = 0;
+
+    recycle_page_table(current_running[cpu_id]->pgdir);
+    freePage(current_running[cpu_id]->kernel_stack_base - PAGE_SIZE);
+    freePage(current_running[cpu_id]->pgdir);
+
     do_scheduler();
 }
 
@@ -244,6 +262,9 @@ int do_kill(pid_t pid)
         do_unblock((list_node_t*)&(pcb[i].wait_list));
         
     pcb[i].lock_ptr = 0;
+    recycle_page_table(pcb[i].pgdir);
+    freePage(pcb[i].kernel_stack_base - PAGE_SIZE);
+    freePage(pcb[i].pgdir);
     return 1;
 }
 
@@ -256,21 +277,23 @@ pid_t do_getpid()
 pid_t do_exec(char *name, int argc, char *argv[])
 {
     int i;
-    for (i = 0; i < NUM_MAX_TASK; i++) 
+    for(i = 0; i < NUM_MAX_TASK; i++) 
     {
         // Here enable multiple instances of the same program
         // if(strcmp(pcb[i].name, name) == 0 && pcb[i].status != TASK_EXITED)
         //     return -1;  // already exists
         if (pcb[i].status == TASK_EXITED) break;
     }
-    if (i == NUM_MAX_TASK) return -2;   // no free
-    pcb[i].entry = load_task_img(name, tasks, tasknum);
-    if(pcb[i].entry == 0) return -3;    // load img failed
+    if(i == NUM_MAX_TASK) return -2;   // no free
 
     pcb[i].pid = ++pcb_num; 
     pcb[i].status = TASK_READY;
     strcpy(pcb[i].name, name);
     pcb[i].lock_ptr = 0; // init lock_id
+    pcb[i].wakeup_time = 0;
+    pcb[i].time_slice = pcb[i].time_slice_remaining = 1;
+    pcb[i].workload = 1;
+    init_list_head(&(pcb[i].wait_list));
 
     // set cpu_id and mask
     int cpu_id = get_current_cpu_id();
@@ -278,34 +301,54 @@ pid_t do_exec(char *name, int argc, char *argv[])
     if(current_running[cpu_id]->pid > 1)    // not launched by shell or pid0
         pcb[i].mask = current_running[cpu_id]->mask;    // the same with parent
 
+    pcb[i].pgdir = allocPage(1);
+    share_pgtable(pcb[i].pgdir, pa2kva(PGDIR_PA));  // share kernel mapping
+    pcb[i].entry = load_task_img(name, tasks, tasknum, pcb[i].pgdir);
+    if(pcb[i].entry == 0) 
+    {
+        freePage(pcb[i].pgdir);
+        pcb[i].status = TASK_EXITED;
+        return -3;    
+    }   // load img failed
+
     pcb[i].kernel_stack_base = allocPage(1)+PAGE_SIZE;
-    pcb[i].user_stack_base = allocPage(1)+PAGE_SIZE;
-    init_pcb_stack(pcb[i].kernel_stack_base, pcb[i].user_stack_base,
-                   pcb[i].entry, &pcb[i]);
-    
-    pcb[i].wakeup_time = 0;
-    pcb[i].time_slice = pcb[i].time_slice_remaining = 1;
-    pcb[i].workload = 1;
-    init_list_head(&(pcb[i].wait_list));
+    pcb[i].user_stack_base = USER_STACK_ADDR;
+    uintptr_t user_stack_page_va  = USER_STACK_ADDR - PAGE_SIZE;
+    uintptr_t user_stack_page_kva = alloc_page_helper(user_stack_page_va, pcb[i].pgdir);
 
-    ptr_t argv_base = pcb[i].user_stack_base - argc * sizeof(char*);
-    ptr_t current_sp = argv_base;
-    ptr_t *argv_ptr_array = (ptr_t *)argv_base;
+    uintptr_t sp_kva = user_stack_page_kva + PAGE_SIZE;
+    uintptr_t sp_uva = USER_STACK_ADDR;
 
-    for(int j = 0; j < argc; j++) {
+    uintptr_t user_argv_uva[argc];
+    for(int j = 0; j < argc; j++) 
+    {
         int len = strlen(argv[j]) + 1;
-        current_sp -= len;
-        strcpy((char *)current_sp, argv[j]);
-        argv_ptr_array[j] = current_sp; 
+        sp_kva -= len;
+        strcpy((char *)sp_kva, argv[j]);
+        user_argv_uva[j] = (sp_uva - (user_stack_page_kva + PAGE_SIZE - sp_kva));
     }
-    argv_ptr_array[argc] = 0;
-    current_sp = current_sp & ~((ptr_t)0xF);
+
+    sp_kva = sp_kva & (~(uintptr_t)7);  // 8-bit align
+    sp_kva -= sizeof(uintptr_t);
+    *(uintptr_t *)sp_kva = 0;   // argv[argc] = NULL
+    for(int j = argc - 1; j >= 0; j--) 
+    {
+        sp_kva -= sizeof(uintptr_t);
+        *(uintptr_t *)sp_kva = (uintptr_t)user_argv_uva[j];
+    }
+
+    ptr_t argv_base = sp_uva - (user_stack_page_kva + PAGE_SIZE - sp_kva);
+    
+    pcb[i].user_sp = sp_uva - (user_stack_page_kva + PAGE_SIZE - sp_kva);
+    pcb[i].user_sp &= ~((ptr_t)0xF);    // 128-bit align
+    init_pcb_stack(pcb[i].kernel_stack_base, pcb[i].user_sp,
+                   pcb[i].entry, &pcb[i]);
 
     regs_context_t *pt_regs = (regs_context_t *)(pcb[i].kernel_stack_base - sizeof(regs_context_t));
-    pt_regs->regs[2] = current_sp;       // sp
+    pt_regs->regs[2] = pcb[i].user_sp;       // sp
     pt_regs->regs[10] = (reg_t)argc;     // a0
     pt_regs->regs[11] = (reg_t)argv_base;// a1
-    pcb[i].user_sp = current_sp; 
+    
 
     queue_pushfront(&(pcb[i].list), &ready_queue);
 

@@ -160,56 +160,6 @@ static void read_batchfiles()
     memcpy((void*)&batchfiles, (void*)BUFFER, sizeof(batch_file_t));
 }
 
-static void excute_batchfiles(task_info_t* tasks, int tasknum)
-{
-    if(tasknum == 0)
-    {
-        bios_putstr("No batch files loaded!\n\r");
-        return;
-    }
-    read_batchfiles();
-
-    // Need to load begin data from console
-    int ch, data = 0;
-    bios_putstr("Please input data the first batch file get:\n\r");
-    while(1)
-    {
-        while((ch = bios_getchar()) == -1);
-        if(ch == '\n' || ch == '\r')    
-        {
-            bios_putstr("\n\r");
-            break;
-        }
-        else if(ch == '\b' || ch == 127)
-        {
-            if(data > 0)
-            {
-                data /=10;
-                bios_putstr("\b \b");
-            }
-            continue;
-        }
-        bios_putchar(ch);
-        if(ch >= '0' && ch <= '9')
-            data *= 10, data += ch-'0';
-        else
-        {
-            bios_putstr("Input not valid, expecting number 0~9\n\r");
-            data = 0;
-            continue;
-        }
-    }
-    *(int*)BATCH_DATA_LOC = data;
-    // Excute batch file
-    for(int i=0; i<batchfiles.num; i++)
-    {
-        bios_putstr("excute batch file: ");
-        bios_putstr(batchfiles.names[i]);
-        bios_putstr("\n\r");
-        excute_by_name(batchfiles.names[i], tasks, tasknum, true);
-    }
-}
-
 static void Backspace(int* name_ptr)
 {
     if(*name_ptr > 0)
@@ -260,7 +210,7 @@ void init_pcb_stack(
     memset(pt_regs, 0, sizeof(regs_context_t));
     // sbadaddr、scause ?
     pt_regs->sepc = entry_point;
-    pt_regs->sstatus = SR_SPIE & ~SR_SPP;   // ensure not modify other bits!!
+    pt_regs->sstatus = (SR_SPIE & ~SR_SPP) | SR_SUM;   // ensure not modify other bits!!
     pt_regs->regs[2] = user_stack;  // user: sp
     pt_regs->regs[4] = (reg_t) pcb; // tp 
 
@@ -292,6 +242,7 @@ static void init_pcb(void)
         idle->cursor_y = 0;
         idle->cpu_id = i;
         idle->mask = 3; // to enable initail task mask is 0b11
+        idle->pgdir = pa2kva(PGDIR_PA);
         idle->kernel_sp = idle->kernel_stack_base = stack_top;
         idle->user_sp = idle->user_stack_base = 0;
         strcpy(idle->name, "IDLE");
@@ -314,8 +265,8 @@ static void init_pcb(void)
     current_running[0] = &pid0_pcb[0];
     current_running[1] = &pid0_pcb[1];
 
-    // char* argv[1] = {"shell"};
-    // do_exec("shell", 1, argv);
+    char* argv[1] = {"shell"};
+    do_exec("shell", 1, argv);
     // char* argv1[1] = {"waitpid"};
     // do_exec("waitpid", 1, argv1);
 }
@@ -430,10 +381,6 @@ int main(void)
          * NOTE: if you use SMP, then every CPU core should call
          *  `kernel_brake()` to stop executing!
          */
-        printk("> [INIT] CPU #%u has entered kernel with VM!\n",
-            (unsigned int)get_current_cpu_id());
-        // TODO: [p4-task1 cont.] remove the brake and continue to start user processes.
-        kernel_brake();
 
         // Init screen (QAQ)
         init_screen();   

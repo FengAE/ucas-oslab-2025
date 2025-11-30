@@ -26,6 +26,7 @@ typedef struct {
     int         is_batch;
     int         offset;
     int         size;
+    int         memsz;
     char        name[16];
 } task_info_t;
 
@@ -128,6 +129,8 @@ static void create_image(int nfiles, char *files[])
             strcpy(taskinfo[taskidx].name, *files);
             taskinfo[taskidx].offset = phyaddr;
             taskinfo[taskidx].is_batch = 0;
+            taskinfo[taskidx].size = 0;
+            taskinfo[taskidx].memsz = 0;
         }
 
 
@@ -145,6 +148,12 @@ static void create_image(int nfiles, char *files[])
             /* update nbytes_kernel */
             if (strcmp(*files, "main") == 0) {
                 nbytes_kernel += get_filesz(phdr);
+            }
+
+            if (taskidx >= 0) 
+            {
+                taskinfo[taskidx].size  += get_filesz(phdr);   
+                taskinfo[taskidx].memsz += get_memsz(phdr);    
             }
         }
 
@@ -173,9 +182,6 @@ static void create_image(int nfiles, char *files[])
         //     int next_offset = NBYTES2SEC(phyaddr) * SECTOR_SIZE;
         //     write_padding(img, &phyaddr, next_offset);
         // }
-
-        if(taskidx >= 0)
-            taskinfo[taskidx].size = phyaddr - taskinfo[taskidx].offset;
 
         fclose(fp);
         files++;

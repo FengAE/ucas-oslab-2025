@@ -107,6 +107,7 @@ typedef struct pcb
     int time_slice_remaining;
     int lock_id[16];
     int lock_ptr;
+    uint64_t pgdir; // kva
 } pcb_t;
 
 /* ready queue to run */

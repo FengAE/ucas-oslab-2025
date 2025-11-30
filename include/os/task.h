@@ -17,6 +17,7 @@ typedef struct {
     int         is_batch;
     int         offset;
     int         size;
+    int         memsz;
     char        name[16];
 } task_info_t;
 
