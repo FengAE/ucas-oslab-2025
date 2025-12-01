@@ -27,10 +27,7 @@ uint64_t load_task_img(const char* name, task_info_t* tasks, int tasknum, uintpt
     task_info_t *info = &tasks[id];
     uint64_t va_start = info->entry;         // 0x10000
     uint64_t va_end   = va_start + info->memsz; 
-    
     uint64_t file_offset = info->offset;
-    uint64_t start_sec   = file_offset / SECTOR_SIZE;
-    uint64_t sec_offset  = file_offset % SECTOR_SIZE;
 
     for (uint64_t va = va_start; va < va_end; va += PAGE_SIZE) 
     {

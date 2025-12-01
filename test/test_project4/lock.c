@@ -13,7 +13,7 @@ static char blank[] = {"                                             "};
 int main(int argc, char *argv[])
 {
     assert(argc > 0);
-    int print_location = (argc >= 1) ? atoi(argv[1]) : 0;
+    int print_location = (argc >= 3) ? atoi(argv[2]) : 0;
     int mutex_id = sys_mutex_init(LOCK2_KEY);
     assert(mutex_id >= 0);
 

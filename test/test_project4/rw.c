@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <stdint.h>
-#include <stdint.h>
 #include <time.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
+#include <string.h>
 
 int main(int argc, char* argv[])
 {
@@ -14,10 +14,16 @@ int main(int argc, char* argv[])
 	uintptr_t mem1 = 0;
 	int curs = 0;
 	int i;
-	sys_move_cursor(2, 2);
-	for (i = 1; i < argc; i++)
+	sys_move_cursor(0, 2);
+	for (i = 2; i < argc; i++)
 	{
-		mem1 = atol(argv[i]);
+		if(strcmp(argv[i], "&") == 0)	continue;
+		else if(strncmp(argv[i], "0x", 2) != 0)	
+		{
+			printf("Input address type error: expect 0x+num\n");
+			continue;
+		}
+		mem1 = strtoull_simple(argv[i], 16);
 		// sys_move_cursor(2, curs+i);
 		mem2 = rand();
 		*(long*)mem1 = mem2;

@@ -106,3 +106,58 @@ void strrev(char *str)
         str[j] = tmp;
     }
 }
+
+unsigned long long strtoull_simple(const char *s, int base)
+{
+    while (*s == ' ' || *s == '\t')
+        s++;
+    int neg = 0;
+    if (*s == '+') s++;
+    else if (*s == '-') { neg = 1; s++; }
+
+    if (base == 0) {
+        if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+            base = 16;
+            s += 2;
+        } else if (s[0] == '0') {
+            base = 8;
+            s++;
+        } else {
+            base = 10;
+        }
+    } else if (base == 16) {
+        if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
+            s += 2;
+    }
+
+    unsigned long long val = 0, prev = 0;
+    const unsigned long long ULL_MAX_VAL = ~0ULL;
+
+    while (*s) {
+        int digit;
+
+        if (*s >= '0' && *s <= '9')
+            digit = *s - '0';
+        else if (*s >= 'a' && *s <= 'f')
+            digit = *s - 'a' + 10;
+        else if (*s >= 'A' && *s <= 'F')
+            digit = *s - 'A' + 10;
+        else
+            break;  
+
+        if (digit >= base)
+            break;
+
+        prev = val;
+        val = val * base + digit;
+
+        if (val < prev) {
+            val = ULL_MAX_VAL;    
+            break;
+        }
+
+        s++;
+    }
+
+    return neg ? -val : val;
+}

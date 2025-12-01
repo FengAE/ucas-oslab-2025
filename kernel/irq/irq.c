@@ -3,6 +3,7 @@
 #include <os/sched.h>
 #include <os/string.h>
 #include <os/kernel.h>
+#include <os/mm.h>
 #include <printk.h>
 #include <assert.h>
 #include <screen.h>
@@ -28,6 +29,19 @@ void handle_irq_soft(regs_context_t *regs, uint64_t stval, uint64_t scause)
     asm volatile("csrc sip, %0" : : "r" (SIE_SSIE));
 }
 
+void handle_page_fault(regs_context_t *regs, uint64_t stval, uint64_t scause)
+{    
+    if (stval >= 0x4000000000ULL) 
+    { // exceed sv39 user address upbound
+        printk("Segfault: Illegal access to 0x%lx\n", stval);
+        do_exit(); 
+        return;
+    }
+    int cpu_id = get_current_cpu_id();
+    alloc_page_helper(stval, current_running[cpu_id]->pgdir);
+    local_flush_tlb_all();
+}
+
 void handle_irq_timer(regs_context_t *regs, uint64_t stval, uint64_t scause)
 {
     // TODO: [p2-task4] clock interrupt handler.
@@ -50,6 +64,8 @@ void init_exception()
     for(int i=0; i<EXCC_COUNT; i++)
         exc_table[i] = handle_other;
     exc_table[EXCC_SYSCALL] = handle_syscall;
+    exc_table[EXCC_LOAD_PAGE_FAULT] = handle_page_fault;
+    exc_table[EXCC_STORE_PAGE_FAULT] = handle_page_fault;
 
     /* TODO: [p2-task4] initialize irq_table */
     /* NOTE: handle_int, handle_other, etc.*/
