@@ -149,21 +149,24 @@ void do_sleep(uint32_t sleep_time)
     switch_to(prev_running, next_pcb);
 }
 
+
 void do_block(list_node_t *pcb_node, list_head *queue)
 {
-    if(ready_queue.next == &ready_queue) return;
+    queue_pushfront(pcb_node, queue);
 
     int cpu_id = get_current_cpu_id();
-    pcb_t* next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
-    next_pcb->status = TASK_RUNNING;
-
-    queue_pushfront(pcb_node, queue);
-    current_running[cpu_id]->status = TASK_BLOCKED; 
     pcb_t* prev_running = current_running[cpu_id];
+    prev_running->status = TASK_BLOCKED;
+    pcb_t* next_pcb = NULL;
+    if (ready_queue.next != &ready_queue) 
+        next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
+    else    // no other tasks, switch to pid0
+        next_pcb = &pid0_pcb[cpu_id];
+    next_pcb->status = TASK_RUNNING;
     current_running[cpu_id] = next_pcb;
-
     set_satp(SATP_MODE_SV39, next_pcb->pid, kva2pa(next_pcb->pgdir) >> NORMAL_PAGE_SHIFT);
     local_flush_tlb_all();
+    
     switch_to(prev_running, next_pcb);
 }
 
@@ -253,8 +256,12 @@ int do_kill(pid_t pid)
         if(pcb[i].pid == pid) break;
     if(i == NUM_MAX_TASK || pcb[i].status == TASK_EXITED) 
         return 0;
-    pcb[i].list.next->prev = pcb[i].list.prev;
-    pcb[i].list.prev->next = pcb[i].list.next;
+    // can't remove pcb[i] directly, since maybe it's running --> not in any queue
+    if (pcb[i].status != TASK_RUNNING) 
+    {
+        pcb[i].list.next->prev = pcb[i].list.prev;
+        pcb[i].list.prev->next = pcb[i].list.next;
+    }
     pcb[i].status = TASK_EXITED;
     for(int j=0; j<pcb[i].lock_ptr; j++)
         do_mutex_lock_release(pcb[i].lock_id[j]);

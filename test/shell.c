@@ -111,7 +111,7 @@ int main(void)
                             else if(pid == -3)  printf("Error: load task image failed: \"%s\"\n", argv[1]);
                             else    printf("exec pid: [%d], successfully!\n", pid);
                             
-                            if(!(argc == 3 && strcmp(argv[argc-1], "&") == 0))
+                            if(!(strcmp(argv[argc-1], "&") == 0))
                                 sys_waitpid(pid);
 
                         } else 

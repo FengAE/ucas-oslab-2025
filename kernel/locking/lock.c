@@ -67,16 +67,18 @@ int do_mutex_lock_init(int key)
 void do_mutex_lock_acquire(int mlock_idx)
 {
     /* TODO: [p2-task2] acquire mutex lock */
+    if(mlock_idx < 0)   return;
     int cpu_id = get_current_cpu_id();
+    pcb_t* pcb = current_running[cpu_id];
     if(mlocks[mlock_idx].lock.status == UNLOCKED)
     {
-        pcb_t* pcb = current_running[cpu_id];
         pcb->lock_id[pcb->lock_ptr++] = mlock_idx;
         mlocks[mlock_idx].lock.status = LOCKED;
     }
     else
     {
         do_block(&current_running[cpu_id]->list, &mlocks[mlock_idx].block_queue);
+        pcb->lock_id[pcb->lock_ptr++] = mlock_idx;  // when unblocked, get lock
     }
 }
 
