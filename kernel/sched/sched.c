@@ -222,8 +222,13 @@ void do_exit()
     current_running[cpu_id]->status = TASK_EXITED;
     
     // release locks
-    for(int i=0; i<current_running[cpu_id]->lock_ptr; i++)
-        do_mutex_lock_release(current_running[cpu_id]->lock_id[i]);
+    while (current_running[cpu_id]->lock_ptr > 0)
+    {
+        // 获取第0个锁的ID
+        int lock_idx = current_running[cpu_id]->lock_id[0];
+        // 释放它（这会自动将后面的元素前移，lock_ptr 减 1）
+        do_mutex_lock_release(lock_idx);
+    }
         
     while(current_running[cpu_id]->wait_list.next != &(current_running[cpu_id]->wait_list))
         do_unblock((list_node_t*)&(current_running[cpu_id]->wait_list));
@@ -244,15 +249,24 @@ int do_kill(pid_t pid)
         if(pcb[i].pid == pid) break;
     if(i == NUM_MAX_TASK || pcb[i].status == TASK_EXITED) 
         return 0;
-    pcb[i].list.next->prev = pcb[i].list.prev;
-    pcb[i].list.prev->next = pcb[i].list.next;
+    if(pcb[i].status != TASK_RUNNING)
+    {
+        pcb[i].list.next->prev = pcb[i].list.prev;
+        pcb[i].list.prev->next = pcb[i].list.next;
+    }
     pcb[i].status = TASK_EXITED;
-    for(int j=0; j<pcb[i].lock_ptr; j++)
-        do_mutex_lock_release(pcb[i].lock_id[j]);
+    for (int j = 0; j < pcb[i].lock_ptr; j++)
+    {
+        int mlock_idx = pcb[i].lock_id[j];
+        if (!do_unblock(&(mlocks[mlock_idx].block_queue))) 
+        {
+            mlocks[mlock_idx].lock.status = UNLOCKED;
+        }
+    }
+    pcb[i].lock_ptr = 0;
     while(pcb[i].wait_list.next != &(pcb[i].wait_list))
         do_unblock((list_node_t*)&(pcb[i].wait_list));
-        
-    pcb[i].lock_ptr = 0;
+
     return 1;
 }
 

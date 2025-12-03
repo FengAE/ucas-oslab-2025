@@ -69,9 +69,9 @@ void do_mutex_lock_acquire(int mlock_idx)
     /* TODO: [p2-task2] acquire mutex lock */
     if(mlock_idx < 0)   return;
     int cpu_id = get_current_cpu_id();
+    pcb_t* pcb = current_running[cpu_id];
     if(mlocks[mlock_idx].lock.status == UNLOCKED)
     {
-        pcb_t* pcb = current_running[cpu_id];
         pcb->lock_id[pcb->lock_ptr++] = mlock_idx;
         mlocks[mlock_idx].lock.status = LOCKED;
     }
@@ -89,6 +89,22 @@ void do_mutex_lock_release(int mlock_idx)
     if(!do_unblock(&(mlocks[mlock_idx].block_queue))) 
     {
         mlocks[mlock_idx].lock.status = UNLOCKED;
+    }
+    int cpu_id = get_current_cpu_id();
+    pcb_t* pcb = current_running[cpu_id];
+    
+    for (int i = 0; i < pcb->lock_ptr; i++) 
+    {
+        if (pcb->lock_id[i] == mlock_idx) 
+        {
+            // 找到锁了，将其移除（通过将后面的元素前移）
+            for (int j = i; j < pcb->lock_ptr - 1; j++) 
+            {
+                pcb->lock_id[j] = pcb->lock_id[j+1];
+            }
+            pcb->lock_ptr--;
+            break; // 移除一个即可退出
+        }
     }
 }
 
