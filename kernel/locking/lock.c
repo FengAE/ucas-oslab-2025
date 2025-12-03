@@ -90,6 +90,21 @@ void do_mutex_lock_release(int mlock_idx)
     {
         mlocks[mlock_idx].lock.status = UNLOCKED;
     }
+    // remove it from lock_id!
+    int cpu_id = get_current_cpu_id();
+    pcb_t* pcb = current_running[cpu_id];
+    for (int i = 0; i < pcb->lock_ptr; i++) 
+    {
+        if (pcb->lock_id[i] == mlock_idx) 
+        {
+            for (int j = i; j < pcb->lock_ptr - 1; j++) 
+            {
+                pcb->lock_id[j] = pcb->lock_id[j+1];
+            }
+            pcb->lock_ptr--;
+            break;
+        }
+    }
 }
 
 // ================== barriers ================
