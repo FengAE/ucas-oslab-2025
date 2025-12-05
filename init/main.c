@@ -260,6 +260,7 @@ static void init_pcb(void)
         pcb[i].check_point = 0;
         pcb[i].workload = 0;
         pcb[i].mask = 3;  // enable running on both cpus
+        pcb[i].pgdir = 0;
     }
     /* TODO: [p2-task1] remember to initialize 'current_runing' */
     current_running[0] = &pid0_pcb[0];

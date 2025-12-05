@@ -239,10 +239,6 @@ void do_exit()
         do_unblock((list_node_t*)&(current_running[cpu_id]->wait_list));
     current_running[cpu_id]->lock_ptr = 0;
 
-    recycle_page_table(current_running[cpu_id]->pgdir);
-    freePage(current_running[cpu_id]->kernel_stack_base - PAGE_SIZE);
-    freePage(current_running[cpu_id]->pgdir);
-
     do_scheduler();
 }
 
@@ -278,9 +274,6 @@ int do_kill(pid_t pid)
         do_unblock((list_node_t*)&(pcb[i].wait_list));
         
     pcb[i].lock_ptr = 0;
-    recycle_page_table(pcb[i].pgdir);
-    freePage(pcb[i].kernel_stack_base - PAGE_SIZE);
-    freePage(pcb[i].pgdir);
     return 1;
 }
 
@@ -295,12 +288,29 @@ pid_t do_exec(char *name, int argc, char *argv[])
     int i;
     for(i = 0; i < NUM_MAX_TASK; i++) 
     {
-        // Here enable multiple instances of the same program
-        // if(strcmp(pcb[i].name, name) == 0 && pcb[i].status != TASK_EXITED)
-        //     return -1;  // already exists
-        if (pcb[i].status == TASK_EXITED) break;
+        // avoid release current_running's page
+        if (pcb[i].status == TASK_EXITED) 
+        {
+            int is_busy = 0;
+            for (int cpu = 0; cpu < NR_CPUS; cpu++) {
+                if (current_running[cpu] == &pcb[i]) {
+                    is_busy = 1;
+                    break;
+                }
+            }
+            if (!is_busy) 
+                break; 
+        }
     }
     if(i == NUM_MAX_TASK) return -2;   // no free
+
+    // if(pcb[i].pgdir != 0)
+    // {
+    //     recycle_page_table(pcb[i].pgdir);
+    //     freePage(pcb[i].kernel_stack_base - PAGE_SIZE);
+    //     freePage(pcb[i].pgdir);
+    //     pcb[i].pgdir = 0;
+    // }
 
     pcb[i].pid = ++pcb_num; 
     pcb[i].status = TASK_READY;
@@ -323,11 +333,12 @@ pid_t do_exec(char *name, int argc, char *argv[])
     if(pcb[i].entry == 0) 
     {
         freePage(pcb[i].pgdir);
+        pcb[i].pgdir = 0;
         pcb[i].status = TASK_EXITED;
         return -3;    
     }   // load img failed
 
-    pcb[i].kernel_stack_base = allocPage(1)+PAGE_SIZE;
+    pcb[i].kernel_stack_base = allocPage(4)+PAGE_SIZE;
     pcb[i].user_stack_base = USER_STACK_ADDR;
     uintptr_t user_stack_page_va  = USER_STACK_ADDR - PAGE_SIZE;
     uintptr_t user_stack_page_kva = alloc_page_helper(user_stack_page_va, pcb[i].pgdir);

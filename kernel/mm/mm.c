@@ -1,5 +1,6 @@
 #include <os/mm.h>
 #include <os/string.h>
+#include <printk.h>
 
 // NOTE: A/C-core
 static ptr_t kernMemCurr = FREEMEM_KERNEL;
@@ -78,10 +79,10 @@ uintptr_t alloc_page_helper(uintptr_t va, uintptr_t pgdir)
     if ((pgdir_kva[vpn2] & _PAGE_PRESENT) == 0) 
     {
         uintptr_t new_page_kva = allocPage(1);
-        set_pfn(&pgdir_kva[vpn2], kva2pa(new_page_kva) >> NORMAL_PAGE_SHIFT);
+        set_pfn(&pgdir_kva[vpn2], kva2pa(new_page_kva) >> NORMAL_PAGE_SHIFT);   
         set_attribute(&pgdir_kva[vpn2], _PAGE_PRESENT); // not leaf: only set V
     }
-
+    // set pte: point to next level
     PTE *pmd_kva = (PTE *)pa2kva(get_pa(pgdir_kva[vpn2]));
     // ---------------- Level 1 ----------------
     if ((pmd_kva[vpn1] & _PAGE_PRESENT)== 0) 
@@ -117,7 +118,10 @@ static void _recycle_walker(PTE *entry, int level)
     if ((level==0) && (*entry & (_PAGE_READ | _PAGE_WRITE | _PAGE_EXEC)) != 0) 
     {   // is leaf node
         if (*entry & _PAGE_USER) // only is user_page recycle
+        {
             freePage(next_kva);
+            *entry = 0;
+        }
         // if kernel large page: not recycle
         return;
     }
@@ -127,6 +131,7 @@ static void _recycle_walker(PTE *entry, int level)
         for (int i = 0; i < NUM_PTE_ENTRY; i++) 
             _recycle_walker(&child_pt[i], level - 1);
         freePage(next_kva);
+        *entry = 0;
     }
 }
 
@@ -137,7 +142,6 @@ void recycle_page_table(uintptr_t pgdir)
     for (int i = 0; i < NUM_PTE_ENTRY / 2; i++) 
     {
         _recycle_walker(&pgdir_entry[i], 2); // Level 2: root
-        pgdir_entry[i] = 0; // empty 
     }
 }
 
