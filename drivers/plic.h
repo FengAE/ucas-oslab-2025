@@ -4,7 +4,7 @@
 #include <type.h>
 #include <os/sched.h>
 
-struct plic_handler {
+extern struct plic_handler {
 	bool		present;
 	void		*hart_base;
 	void		*enable_base;
