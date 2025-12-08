@@ -276,6 +276,21 @@ void swap_in(uintptr_t stval, PTE *pte)
     local_flush_tlb_page(stval);
 }
 
+size_t get_free_memory()
+{
+    size_t total_free = 0;
+
+    if (kernMemCurr < MEM_END) 
+        total_free += (MEM_END - kernMemCurr);
+
+    ptr_t cur = freePageList;
+    while (cur != 0) 
+    {
+        total_free += PAGE_SIZE;
+        cur = *(ptr_t *)cur; 
+    }
+    return total_free;
+}
 
 uintptr_t shm_page_get(int key)
 {

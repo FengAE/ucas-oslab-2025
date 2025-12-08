@@ -276,4 +276,8 @@ void sys_thread_join(pid_t pid)
     invoke_syscall(SYSCALL_THREAD_JOIN, pid, IGNORE, IGNORE, IGNORE, IGNORE);
 }
 
+size_t sys_free_mem(void)
+{
+    return invoke_syscall(SYSCALL_GET_MEMORY, IGNORE, IGNORE, IGNORE, IGNORE, IGNORE);
+}
 /************************************************************/

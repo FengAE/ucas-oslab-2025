@@ -75,6 +75,8 @@ void list_add_page(uintptr_t pa, PTE *pte);
 void free_swap_slot(int idx);
 int alloc_swap_slot();
 
+size_t get_free_memory();
+
 // TODO [P4-task4]: shm_page_get/dt */
 uintptr_t shm_page_get(int key);
 void shm_page_dt(uintptr_t addr);
