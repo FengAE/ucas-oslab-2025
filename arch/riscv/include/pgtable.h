@@ -63,6 +63,8 @@ static inline void set_satp(
 #define _PAGE_DIRTY (1 << 7)    /* Set by hardware on any write */
 #define _PAGE_SOFT (1 << 8)     /* Reserved for software */
 
+#define _PAGE_SWAP (1 << 8)     // Whether is swap
+
 #define _PAGE_PFN_SHIFT 10lu
 
 #define VA_MASK ((1lu << 39) - 1)

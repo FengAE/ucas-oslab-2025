@@ -29,6 +29,7 @@
 #include <type.h>
 #include <os/smp.h>
 #include <pgtable.h>
+#include <os/kernel.h>
 
 #define MAP_KERNEL 1
 #define MAP_USER 2
@@ -41,8 +42,6 @@
 #define ROUND(a, n)     (((((uint64_t)(a))+(n)-1)) & ~((n)-1))
 #define ROUNDDOWN(a, n) (((uint64_t)(a)) & ~((n)-1))
 
-// extern ptr_t allocKernelPage(int numPage);
-// extern ptr_t allocUserPage(int numPage);
 extern ptr_t allocPage(int numPage);
 // TODO [P4-task1] */
 void freePage(ptr_t baseAddr);
@@ -64,6 +63,17 @@ extern void share_pgtable(uintptr_t dest_pgdir, uintptr_t src_pgdir);
 extern uintptr_t alloc_page_helper(uintptr_t va, uintptr_t pgdir);
 
 void recycle_page_table(uintptr_t pgdir);
+
+
+// [p4-task3]
+#define PAGE_SECTORS PAGE_SIZE/512
+#define SWAP_START_SEC 300
+#define SWAP_MAX_PAGES 1024 // max swap num supported
+void swap_in(uintptr_t stval, PTE *pte);
+ptr_t swap_out();
+void list_add_page(uintptr_t pa, PTE *pte);
+void free_swap_slot(int idx);
+int alloc_swap_slot();
 
 // TODO [P4-task4]: shm_page_get/dt */
 uintptr_t shm_page_get(int key);

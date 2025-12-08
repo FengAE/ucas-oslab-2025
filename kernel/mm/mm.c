@@ -8,6 +8,23 @@ static ptr_t freePageList = 0;
 #define MEM_START 0xffffffc050000000
 #define MEM_END 0xffffffc060000000
 
+
+// Swap logic
+#define MAX_USER_PAGES 256     
+int current_pages = 0;
+typedef struct 
+{
+    uintptr_t pa;
+    PTE *pte;    
+} swap_entry_t;
+
+static swap_entry_t swap_queue[MAX_USER_PAGES];
+static int swap_head = 0;
+static int swap_tail = 0;
+#define PTE_PFN_MASK (((1ULL << 44) - 1) << _PAGE_PFN_SHIFT)
+static int swap_disk_map[SWAP_MAX_PAGES];
+
+
 ptr_t allocPage(int numPage)
 {
     // if distribute 1 page && freelist not empty
@@ -24,6 +41,28 @@ ptr_t allocPage(int numPage)
     kernMemCurr = ret + numPage * PAGE_SIZE;
     memset((void*)ret, 0, numPage * PAGE_SIZE);
     return ret;
+}
+
+int is_swap_queue_full()
+{
+    int next_tail = (swap_tail + 1) % MAX_USER_PAGES;
+    return next_tail == swap_head;
+}
+
+ptr_t get_user_page()
+{
+    if (is_swap_queue_full()) 
+    {
+        ptr_t victim_page = swap_out();
+        if (victim_page == 0) 
+        {
+            printk("Panic: Out of memory and Swap\n");
+            return 0; 
+        }
+        return victim_page;
+    }
+    // queue not full: alloc directly    
+    return allocPage(1);
 }
 
 // NOTE: Only need for S-core to alloc 2MB large page
@@ -97,12 +136,13 @@ uintptr_t alloc_page_helper(uintptr_t va, uintptr_t pgdir)
     if ((pte_kva[vpn0] & _PAGE_PRESENT) == 0) 
     {
         // alloc data page (4KB)
-        uintptr_t data_page_kva = allocPage(1);
+        uintptr_t data_page_kva = get_user_page();
         set_pfn(&pte_kva[vpn0], kva2pa(data_page_kva) >> NORMAL_PAGE_SHIFT);
 
         set_attribute(&pte_kva[vpn0], 
             _PAGE_PRESENT | _PAGE_READ | _PAGE_WRITE | _PAGE_EXEC | 
             _PAGE_USER | _PAGE_ACCESSED | _PAGE_DIRTY);
+        list_add_page(kva2pa(data_page_kva), &pte_kva[vpn0]);
         return data_page_kva; 
     }
 
@@ -144,6 +184,98 @@ void recycle_page_table(uintptr_t pgdir)
         _recycle_walker(&pgdir_entry[i], 2); // Level 2: root
     }
 }
+
+
+int alloc_swap_slot() 
+{   // distribute one free slot in disk
+    for (int i = 0; i < SWAP_MAX_PAGES; i++) 
+    {
+        if (swap_disk_map[i] == 0) {
+            swap_disk_map[i] = 1;
+            return i;
+        }
+    }
+    printk("Error: Out of Swap Disk Space!\n");
+    return -1;
+}
+
+void free_swap_slot(int idx) 
+{
+    if (idx >= 0 && idx < SWAP_MAX_PAGES)
+        swap_disk_map[idx] = 0;
+}
+
+void list_add_page(uintptr_t pa, PTE *pte) 
+{   
+    int next_tail = (swap_tail + 1) % MAX_USER_PAGES;
+    swap_queue[swap_tail].pa = pa;
+    swap_queue[swap_tail].pte = pte;
+    swap_tail = next_tail;
+}
+
+// find first valid and swap out
+ptr_t swap_out()
+{
+    if (swap_head == swap_tail) return 0;
+    for(int k=0; k<MAX_USER_PAGES; k++) 
+    {
+        swap_entry_t *victim = &swap_queue[swap_head];
+        int victim_idx = swap_head;
+        swap_head = (swap_head + 1) % MAX_USER_PAGES;
+
+        PTE pte_val = *(victim->pte);
+
+        uintptr_t current_pa = (pte_val >> _PAGE_PFN_SHIFT) << NORMAL_PAGE_SHIFT;        
+        if ( !(pte_val & _PAGE_PRESENT) || (current_pa != victim->pa) ) 
+            continue;
+
+        int swap_idx = alloc_swap_slot();
+        if (swap_idx == -1)     // disk full
+            return 0; 
+
+        int need_write = (pte_val & _PAGE_DIRTY) ? 1 : 0;
+        bios_sd_write(pa2kva(victim->pa), PAGE_SECTORS, SWAP_START_SEC + swap_idx * PAGE_SECTORS);
+
+        pte_val &= ~_PAGE_PRESENT;  // page not valid
+        pte_val &= ~PTE_PFN_MASK;   // clear pfn
+        pte_val |= _PAGE_SWAP;      // set swap tag
+        pte_val &= ~(_PAGE_DIRTY);  // clear dirty
+        pte_val |= ((uint64_t)swap_idx << _PAGE_PFN_SHIFT); // store swap disk pos
+
+        *(victim->pte) = pte_val;
+        local_flush_tlb_all();
+        ptr_t free_page_kva = pa2kva(victim->pa);
+        memset((void*)free_page_kva, 0, PAGE_SIZE);
+        return free_page_kva;
+    }
+    return 0;
+}
+
+void swap_in(uintptr_t stval, PTE *pte) 
+{
+    int swap_idx = (*pte) >> _PAGE_PFN_SHIFT;
+
+    uintptr_t new_page_kva = get_user_page();
+    uintptr_t new_page_pa = kva2pa(new_page_kva);
+
+    int ret = bios_sd_read(new_page_kva, PAGE_SECTORS, SWAP_START_SEC + swap_idx * PAGE_SECTORS);
+    if (ret != 0) 
+    {
+        printk("Error: bios_sd_read failed %d\n", ret);
+        freePage(new_page_kva);
+        return;
+    }
+    free_swap_slot(swap_idx);
+    *pte = 0;   // clear _PAGE_SWAP and swap_pos(pfn)
+
+    set_pfn(pte, new_page_pa >> NORMAL_PAGE_SHIFT);
+    *pte |= (_PAGE_PRESENT | _PAGE_READ | _PAGE_WRITE | _PAGE_EXEC 
+            | _PAGE_USER | _PAGE_ACCESSED | _PAGE_DIRTY);
+
+    list_add_page(new_page_pa, pte);
+    local_flush_tlb_page(stval);
+}
+
 
 uintptr_t shm_page_get(int key)
 {

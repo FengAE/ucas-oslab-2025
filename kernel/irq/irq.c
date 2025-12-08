@@ -29,6 +29,22 @@ void handle_irq_soft(regs_context_t *regs, uint64_t stval, uint64_t scause)
     asm volatile("csrc sip, %0" : : "r" (SIE_SSIE));
 }
 
+PTE* find_pte(uintptr_t pgdir, uint64_t va) 
+{
+    uint64_t vpn2 = (va >> 30) & 0x1FF;
+    uint64_t vpn1 = (va >> 21) & 0x1FF;
+    uint64_t vpn0 = (va >> 12) & 0x1FF;
+
+    PTE *pgdir_kva = (PTE *)pgdir;
+    if (!(pgdir_kva[vpn2] & _PAGE_PRESENT)) return NULL;
+
+    PTE *pmd_kva = (PTE *)pa2kva(get_pa(pgdir_kva[vpn2]));
+    if (!(pmd_kva[vpn1] & _PAGE_PRESENT)) return NULL;
+
+    PTE *pte_kva = (PTE *)pa2kva(get_pa(pmd_kva[vpn1]));
+    return &pte_kva[vpn0];
+}
+
 void handle_page_fault(regs_context_t *regs, uint64_t stval, uint64_t scause)
 {    
     if (stval >= 0x4000000000ULL) 
@@ -38,8 +54,17 @@ void handle_page_fault(regs_context_t *regs, uint64_t stval, uint64_t scause)
         return;
     }
     int cpu_id = get_current_cpu_id();
-    alloc_page_helper(stval, current_running[cpu_id]->pgdir);
-    local_flush_tlb_all();
+    uintptr_t pgdir = current_running[cpu_id]->pgdir;
+    PTE* pte = find_pte(pgdir, stval);
+
+    if (pte && (*pte & _PAGE_SWAP))
+        swap_in(stval, pte);
+    else 
+    {   // Page loss
+        alloc_page_helper(stval, pgdir);
+        local_flush_tlb_page(stval);
+    }
+    
 }
 
 void handle_irq_timer(regs_context_t *regs, uint64_t stval, uint64_t scause)
@@ -66,6 +91,7 @@ void init_exception()
     exc_table[EXCC_SYSCALL] = handle_syscall;
     exc_table[EXCC_LOAD_PAGE_FAULT] = handle_page_fault;
     exc_table[EXCC_STORE_PAGE_FAULT] = handle_page_fault;
+    exc_table[EXCC_INST_PAGE_FAULT]  = handle_page_fault;
 
     /* TODO: [p2-task4] initialize irq_table */
     /* NOTE: handle_int, handle_other, etc.*/
