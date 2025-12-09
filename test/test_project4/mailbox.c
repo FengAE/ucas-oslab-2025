@@ -27,14 +27,14 @@ static inline int ring_buffer_empty()
 }
 void ring_buffer_append(char ch)
 {
-    while (ring_buffer_full());
+    while (ring_buffer_full())  sys_yield();
 
     ring_buffer[ring_buffer_tail] = ch;
     ring_buffer_tail = (ring_buffer_tail + 1) % BUFFER_LENGTH;
 }
 char ring_buffer_pop()
 {
-    while (ring_buffer_empty());
+    while (ring_buffer_empty()) sys_yield();
 
     char ret = ring_buffer[ring_buffer_head];
     ring_buffer_head = (ring_buffer_head + 1) % BUFFER_LENGTH;
@@ -162,12 +162,16 @@ void send_thread(void *arg)
     {
         len = rand() % (MAX_MBOX_LENGTH / 4 - 2) + 1;
         target = rand() % 2;
+        printf("%c: before get_str\n", id);
         get_str_from_ring_buffer(send_buf, len);
+        printf("%c: after get_str\n", id);
         for (i = len - 1; i >= 0; --i) {
             send_buf[i * 2 + 1] = send_buf[i];
             send_buf[i * 2] = id;
         }
+         
         sys_mbox_send(mq[target], send_buf, 2*len);
+        printf("%c: after send\n", id);
         bytes[target] += len;
 
         sys_move_cursor(1, position);
