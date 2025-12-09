@@ -280,4 +280,19 @@ size_t sys_free_mem(void)
 {
     return invoke_syscall(SYSCALL_GET_MEMORY, IGNORE, IGNORE, IGNORE, IGNORE, IGNORE);
 }
+
+int sys_pipe_open(const char *name)
+{
+    return invoke_syscall(SYSCALL_PIPE_OPEN, (long)name, IGNORE, IGNORE, IGNORE, IGNORE);
+}
+
+long sys_pipe_give_pages(int pipe_idx, void *src, size_t length)
+{
+    return invoke_syscall(SYSCALL_PIPE_GIVE, pipe_idx, (long)src, length, IGNORE, IGNORE);
+}
+
+long sys_pipe_take_pages(int pipe_idx, void *dst, size_t length)
+{
+    return invoke_syscall(SYSCALL_PIPE_TAKE, pipe_idx, (long)dst, length, IGNORE, IGNORE);
+}
 /************************************************************/

@@ -239,6 +239,13 @@ void do_exit()
         do_unblock((list_node_t*)&(current_running[cpu_id]->wait_list));
     current_running[cpu_id]->lock_ptr = 0;
 
+    if(current_running[cpu_id]->pgdir != 0)
+    {
+        freePage(current_running[cpu_id]->kernel_stack_base - PAGE_SIZE);
+        freePage(current_running[cpu_id]->pgdir);
+        current_running[cpu_id]->pgdir = 0;
+    }
+
     do_scheduler();
 }
 
@@ -274,6 +281,12 @@ int do_kill(pid_t pid)
         do_unblock((list_node_t*)&(pcb[i].wait_list));
         
     pcb[i].lock_ptr = 0;
+    if(pcb[i].pgdir != 0)
+    {
+        freePage(pcb[i].kernel_stack_base - PAGE_SIZE);
+        freePage(pcb[i].pgdir);
+        pcb[i].pgdir = 0;
+    }
     return 1;
 }
 
@@ -303,14 +316,6 @@ pid_t do_exec(char *name, int argc, char *argv[])
         }
     }
     if(i == NUM_MAX_TASK) return -2;   // no free
-
-    // if(pcb[i].pgdir != 0)
-    // {
-    //     recycle_page_table(pcb[i].pgdir);
-    //     freePage(pcb[i].kernel_stack_base - PAGE_SIZE);
-    //     freePage(pcb[i].pgdir);
-    //     pcb[i].pgdir = 0;
-    // }
 
     pcb[i].pid = ++pcb_num; 
     pcb[i].status = TASK_READY;

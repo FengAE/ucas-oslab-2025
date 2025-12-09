@@ -311,6 +311,9 @@ static void init_syscall(void)
     syscall[SYSCALL_THREAD_EXIT] = (long (*)())do_thread_exit;
     syscall[SYSCALL_THREAD_JOIN] = (long (*)())do_thread_join;
     syscall[SYSCALL_GET_MEMORY] = (long (*)())get_free_memory;
+    syscall[SYSCALL_PIPE_OPEN] = (long (*)())do_pipe_open;
+    syscall[SYSCALL_PIPE_GIVE] = (long (*)())do_pipe_give_pages;
+    syscall[SYSCALL_PIPE_TAKE] = (long (*)())do_pipe_take_pages;
 }
 /************************************************************/
 
@@ -387,6 +390,8 @@ int main(void)
         // Init screen (QAQ)
         init_screen();   
         // printk("> [MASTER] Core 0 Init Done. Releasing Kernel Lock.\n");
+
+        init_pipes();
 
         asm volatile(
 			"mv tp, %0"

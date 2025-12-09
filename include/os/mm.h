@@ -30,6 +30,7 @@
 #include <os/smp.h>
 #include <pgtable.h>
 #include <os/kernel.h>
+#include <os/list.h>
 
 #define MAP_KERNEL 1
 #define MAP_USER 2
@@ -68,7 +69,7 @@ void recycle_page_table(uintptr_t pgdir);
 // [p4-task3]
 #define PAGE_SECTORS PAGE_SIZE/512
 #define SWAP_START_SEC 300
-#define SWAP_MAX_PAGES 1024 // max swap num supported
+#define SWAP_MAX_PAGES 200000 // max swap num supported
 void swap_in(uintptr_t stval, PTE *pte);
 ptr_t swap_out();
 void list_add_page(uintptr_t pa, PTE *pte);
@@ -82,5 +83,30 @@ uintptr_t shm_page_get(int key);
 void shm_page_dt(uintptr_t addr);
 
 
+
+// TODO [P4-task5]: zero copy pipe
+#define MAX_PIPES 16    // pipe num
+#define PIPE_SIZE 128 
+typedef struct {
+    uintptr_t load_addr; // pa: if is_swap=0; disk pos: if is_swap=1
+    int is_swap;       
+} pipe_page_t;
+
+typedef struct {
+    int valid;
+    char name[32];
+    pipe_page_t pages[PIPE_SIZE];
+    int head; 
+    int tail; 
+    int count;
+    list_head wait_queue;
+} pipe_t; 
+
+extern void init_pipes();
+extern PTE* get_pte_ptr(uintptr_t pgdir, uintptr_t va);
+extern pipe_t pipes[MAX_PIPES];
+int do_pipe_open(const char *name);
+long do_pipe_give_pages(int pipe_idx, void *src, size_t length);
+long do_pipe_take_pages(int pipe_idx, void *dst, size_t length);
 
 #endif /* MM_H */

@@ -312,7 +312,7 @@ static void run_pipe_test(char *prog_name)
 // main: dispatch subcommands or run both tests
 int main(int argc, char *argv[])
 {
-	char *prog_name = argc > 0 ? argv[0] : (char *)"ipc_perf";
+	char *prog_name = (char *)"ipc";
 
 	if (argc >= 3 && strcmp(argv[1], "mbox") == 0)
 	{

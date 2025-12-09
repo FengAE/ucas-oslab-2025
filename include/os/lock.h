@@ -114,7 +114,7 @@ void do_semaphore_destroy(int sema_idx);
 typedef struct mailbox
 {
     // TODO [P3-TASK2 mailbox]
-    char name[25];              
+    char name[32];              
     char buffer[MAX_MBOX_LENGTH]; // circuit buffer
     int head;                   // read ptr
     int tail;                   // write ptr

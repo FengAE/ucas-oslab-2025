@@ -1,5 +1,6 @@
 #include <os/mm.h>
 #include <os/string.h>
+#include <os/sched.h>
 #include <printk.h>
 
 // NOTE: A/C-core
@@ -24,6 +25,7 @@ static int swap_tail = 0;
 #define PTE_PFN_MASK (((1ULL << 44) - 1) << _PAGE_PFN_SHIFT)
 static int swap_disk_map[SWAP_MAX_PAGES];
 
+// shm: used in pipe
 
 ptr_t allocPage(int numPage)
 {
@@ -220,7 +222,6 @@ ptr_t swap_out()
     for(int k=0; k<MAX_USER_PAGES; k++) 
     {
         swap_entry_t *victim = &swap_queue[swap_head];
-        int victim_idx = swap_head;
         swap_head = (swap_head + 1) % MAX_USER_PAGES;
 
         PTE pte_val = *(victim->pte);
@@ -233,7 +234,6 @@ ptr_t swap_out()
         if (swap_idx == -1)     // disk full
             return 0; 
 
-        int need_write = (pte_val & _PAGE_DIRTY) ? 1 : 0;
         bios_sd_write(pa2kva(victim->pa), PAGE_SECTORS, SWAP_START_SEC + swap_idx * PAGE_SECTORS);
 
         pte_val &= ~_PAGE_PRESENT;  // page not valid
@@ -277,7 +277,7 @@ void swap_in(uintptr_t stval, PTE *pte)
 }
 
 size_t get_free_memory()
-{
+{   // return bytes count
     size_t total_free = 0;
 
     if (kernMemCurr < MEM_END) 
@@ -291,6 +291,193 @@ size_t get_free_memory()
     }
     return total_free;
 }
+
+
+/* =========================================================================
+ * P4-task5: Zero Copy Pipe
+ * ========================================================================= */
+
+pipe_t pipes[MAX_PIPES];
+
+void init_pipes() 
+{
+    for(int i=0; i<MAX_PIPES; i++) pipes[i].valid = 0;
+}
+
+PTE* get_pte_ptr(uintptr_t pgdir, uintptr_t va) 
+{
+    uint64_t vpn2 = (va >> 30) & 0x1FF;
+    uint64_t vpn1 = (va >> 21) & 0x1FF;
+    uint64_t vpn0 = (va >> 12) & 0x1FF;
+
+    PTE *pgdir_kva = (PTE *)pgdir;
+    if (!(pgdir_kva[vpn2] & _PAGE_PRESENT)) return NULL;
+
+    PTE *pmd_kva = (PTE *)pa2kva(get_pa(pgdir_kva[vpn2]));
+    if (!(pmd_kva[vpn1] & _PAGE_PRESENT)) return NULL;
+
+    PTE *pte_kva = (PTE *)pa2kva(get_pa(pmd_kva[vpn1]));
+    return &pte_kva[vpn0];
+}
+
+static PTE* ensure_pte_path(uintptr_t pgdir, uintptr_t va) 
+{
+    uint64_t vpn2 = (va >> 30) & 0x1FF;
+    uint64_t vpn1 = (va >> 21) & 0x1FF;
+    uint64_t vpn0 = (va >> 12) & 0x1FF;
+
+    PTE *pgdir_kva = (PTE *)pgdir;
+    // Level 2
+    if (!(pgdir_kva[vpn2] & _PAGE_PRESENT)) {
+        ptr_t new_page = allocPage(1); 
+        if(new_page == 0) return NULL;
+        set_pfn(&pgdir_kva[vpn2], kva2pa(new_page) >> NORMAL_PAGE_SHIFT);
+        set_attribute(&pgdir_kva[vpn2], _PAGE_PRESENT);
+    }
+    
+    PTE *pmd_kva = (PTE *)pa2kva(get_pa(pgdir_kva[vpn2]));
+    // Level 1
+    if (!(pmd_kva[vpn1] & _PAGE_PRESENT)) {
+        ptr_t new_page = allocPage(1); 
+        if(new_page == 0) return NULL;
+        set_pfn(&pmd_kva[vpn1], kva2pa(new_page) >> NORMAL_PAGE_SHIFT);
+        set_attribute(&pmd_kva[vpn1], _PAGE_PRESENT);
+    }
+
+    PTE *pte_kva = (PTE *)pa2kva(get_pa(pmd_kva[vpn1]));
+    return &pte_kva[vpn0];
+}
+
+int do_pipe_open(const char *name) 
+{
+    for (int i = 0; i < MAX_PIPES; i++) 
+    {
+        if (pipes[i].valid && strcmp(pipes[i].name, name) == 0) return i;
+    }
+    for (int i = 0; i < MAX_PIPES; i++) 
+    {
+        if (!pipes[i].valid) 
+        {
+            pipes[i].valid = 1;
+            strcpy(pipes[i].name, name);
+            pipes[i].head = 0;
+            pipes[i].tail = 0;
+            pipes[i].count = 0;
+            init_list_head(&pipes[i].wait_queue); 
+            return i;
+        }
+    }
+    return -1;  // pipe full
+}
+
+long do_pipe_give_pages(int pipe_idx, void *src, size_t length) 
+{
+    if (pipe_idx < 0 || pipe_idx >= MAX_PIPES || !pipes[pipe_idx].valid) return -1;
+    pipe_t *pipe = &pipes[pipe_idx];
+    
+    int total_pages = length / PAGE_SIZE;
+    int processed = 0;
+    uintptr_t current_src = (uintptr_t)src;
+
+    for (int i = 0; i < total_pages; i++) 
+    {
+        int cpu_id = get_current_cpu_id();
+        // if pipe full, block
+        while (pipe->count >= PIPE_SIZE) {
+            current_running[cpu_id]->status = TASK_BLOCKED;
+            do_block(&current_running[cpu_id]->list, &pipe->wait_queue);
+            do_scheduler();
+        }
+
+        PTE *pte = get_pte_ptr(current_running[cpu_id]->pgdir, current_src);
+        if (!pte || *pte == 0) 
+        {
+            current_src += PAGE_SIZE;
+            continue;
+        }
+
+        pipe_page_t *node = &pipe->pages[pipe->tail];
+        if (*pte & _PAGE_PRESENT) 
+        {
+            node->load_addr = (*pte >> _PAGE_PFN_SHIFT) << NORMAL_PAGE_SHIFT; // 存 PA
+            node->is_swap = 0;
+        } 
+        else 
+        {
+            node->load_addr = *pte;
+            node->is_swap = 1;
+        }
+
+        pipe->tail = (pipe->tail + 1) % PIPE_SIZE;
+        pipe->count++;
+        // unmap the page from sender
+        *pte = 0; 
+        local_flush_tlb_page(current_src);
+
+        current_src += PAGE_SIZE;
+        processed++;
+        // wake up receiver
+        do_unblock(&pipe->wait_queue);
+    }
+    return processed * PAGE_SIZE;
+}
+
+long do_pipe_take_pages(int pipe_idx, void *dst, size_t length) 
+{
+    if (pipe_idx < 0 || pipe_idx >= MAX_PIPES || !pipes[pipe_idx].valid) return -1;
+    pipe_t *pipe = &pipes[pipe_idx];
+
+    int total_pages = length / PAGE_SIZE;
+    int processed = 0;
+    uintptr_t current_dst = (uintptr_t)dst;
+
+    for (int i = 0; i < total_pages; i++) 
+    {
+        int cpu_id = get_current_cpu_id();
+        while (pipe->count <= 0) {
+            current_running[cpu_id]->status = TASK_BLOCKED;
+            do_block(&current_running[cpu_id]->list, &pipe->wait_queue);
+            do_scheduler();
+        }
+
+        pipe_page_t *node = &pipe->pages[pipe->head];
+        PTE *pte = ensure_pte_path(current_running[cpu_id]->pgdir, current_dst);
+        if (!pte) return -1;
+
+        if (*pte & _PAGE_PRESENT) 
+        {   // not swap
+            uintptr_t old_pa = (*pte >> _PAGE_PFN_SHIFT) << NORMAL_PAGE_SHIFT;
+            freePage(pa2kva(old_pa)); 
+        }
+        else 
+        {   // swap
+            int swap_idx = (*pte) >> _PAGE_PFN_SHIFT;
+            free_swap_slot(swap_idx);
+        }
+
+        if (node->is_swap)
+            *pte = node->load_addr; // get back swap info
+        else 
+        {
+            uintptr_t pa = node->load_addr;
+            set_pfn(pte, pa >> NORMAL_PAGE_SHIFT);
+            set_attribute(pte, _PAGE_PRESENT | _PAGE_USER | _PAGE_READ | _PAGE_WRITE | 
+                               _PAGE_EXEC | _PAGE_ACCESSED | _PAGE_DIRTY);
+            list_add_page(pa, pte); 
+        }
+
+        pipe->head = (pipe->head + 1) % PIPE_SIZE;
+        pipe->count--;
+        local_flush_tlb_page(current_dst);
+
+        current_dst += PAGE_SIZE;
+        processed++;
+        // wake up sender
+        do_unblock(&pipe->wait_queue);
+    }
+    return processed * PAGE_SIZE;
+}
+
 
 uintptr_t shm_page_get(int key)
 {

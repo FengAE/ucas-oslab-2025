@@ -4,12 +4,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <os/sched.h>
 
 #define PAGE 4096ul            // Page size used for pipe page transfers.
 #define PIPE_SELF "pipe-self"  // Pipe name used for self-test.
 #define PIPE_DEMO "pipe-demo"  // Pipe name used for cross-process demo.
-#define PIPE_SEND_LINE 3
-#define PIPE_RECV_LINE 2
+#define PIPE_SEND_LINE 4
+#define PIPE_RECV_LINE 6
 
 // Allocate 'pages' aligned pages for the test. This test stub returns a
 // fixed high address to simulate a mapped region.
@@ -123,7 +124,7 @@ int main(int argc, char *argv[])
 	if (argc > 1 && strcmp(argv[1], "recv") == 0)
 		return pipe_receiver();
 
-	char *prog_name = argc > 0 ? argv[0] : (char *)"pipe";
+	char *prog_name = (char *)"pipe";
 
 	if (pipe_self_test() < 0)
 		printf("pipe: self test failed\n");

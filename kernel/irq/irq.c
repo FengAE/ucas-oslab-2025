@@ -29,21 +29,6 @@ void handle_irq_soft(regs_context_t *regs, uint64_t stval, uint64_t scause)
     asm volatile("csrc sip, %0" : : "r" (SIE_SSIE));
 }
 
-PTE* find_pte(uintptr_t pgdir, uint64_t va) 
-{
-    uint64_t vpn2 = (va >> 30) & 0x1FF;
-    uint64_t vpn1 = (va >> 21) & 0x1FF;
-    uint64_t vpn0 = (va >> 12) & 0x1FF;
-
-    PTE *pgdir_kva = (PTE *)pgdir;
-    if (!(pgdir_kva[vpn2] & _PAGE_PRESENT)) return NULL;
-
-    PTE *pmd_kva = (PTE *)pa2kva(get_pa(pgdir_kva[vpn2]));
-    if (!(pmd_kva[vpn1] & _PAGE_PRESENT)) return NULL;
-
-    PTE *pte_kva = (PTE *)pa2kva(get_pa(pmd_kva[vpn1]));
-    return &pte_kva[vpn0];
-}
 
 void handle_page_fault(regs_context_t *regs, uint64_t stval, uint64_t scause)
 {    
@@ -55,7 +40,7 @@ void handle_page_fault(regs_context_t *regs, uint64_t stval, uint64_t scause)
     }
     int cpu_id = get_current_cpu_id();
     uintptr_t pgdir = current_running[cpu_id]->pgdir;
-    PTE* pte = find_pte(pgdir, stval);
+    PTE* pte = get_pte_ptr(pgdir, stval);
 
     if (pte && (*pte & _PAGE_SWAP))
         swap_in(stval, pte);
