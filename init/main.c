@@ -242,6 +242,7 @@ static void init_pcb(void)
         idle->cursor_y = 0;
         idle->cpu_id = i;
         idle->mask = 3; // to enable initail task mask is 0b11
+        idle->is_thread = 0;
         idle->pgdir = pa2kva(PGDIR_PA);
         idle->kernel_sp = idle->kernel_stack_base = stack_top;
         idle->user_sp = idle->user_stack_base = 0;
@@ -261,6 +262,7 @@ static void init_pcb(void)
         pcb[i].workload = 0;
         pcb[i].mask = 3;  // enable running on both cpus
         pcb[i].pgdir = 0;
+        pcb[i].is_thread = 0;
     }
     /* TODO: [p2-task1] remember to initialize 'current_runing' */
     current_running[0] = &pid0_pcb[0];

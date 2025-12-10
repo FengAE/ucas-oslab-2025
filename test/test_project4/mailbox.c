@@ -162,16 +162,13 @@ void send_thread(void *arg)
     {
         len = rand() % (MAX_MBOX_LENGTH / 4 - 2) + 1;
         target = rand() % 2;
-        printf("%c: before get_str\n", id);
         get_str_from_ring_buffer(send_buf, len);
-        printf("%c: after get_str\n", id);
         for (i = len - 1; i >= 0; --i) {
             send_buf[i * 2 + 1] = send_buf[i];
             send_buf[i * 2] = id;
         }
          
         sys_mbox_send(mq[target], send_buf, 2*len);
-        printf("%c: after send\n", id);
         bytes[target] += len;
 
         sys_move_cursor(1, position);

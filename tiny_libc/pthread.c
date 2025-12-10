@@ -6,9 +6,11 @@ void pthread_create(pthread_t *thread,
                    void *arg)
 {
     /* TODO: [p4-task4] implement pthread_create */
+    sys_thread_create((int*)thread, (void*)start_routine, arg);
 }
 
 int pthread_join(pthread_t thread)
 {
     /* TODO: [p4-task4] implement pthread_join */
+    sys_thread_join(thread);
 }
