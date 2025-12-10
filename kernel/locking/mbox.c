@@ -124,28 +124,26 @@ int do_mbox_recv(int mbox_idx, void *msg, int msg_length)
     int bytes_read = 0;
 
     do_mutex_lock_acquire(mbox->mutex_idx);
-
-    while (bytes_read < msg_length) 
+    // no bytes to read, block
+    while (mbox->nbytes == 0) 
     {
-        while (mbox->nbytes == 0) 
-        {
-            blocked_times++;
-            do_mutex_lock_release(mbox->mutex_idx);
-            int cpu_id = get_current_cpu_id();
-            do_block(&current_running[cpu_id]->list, &mbox->recv_queue);        
-            do_mutex_lock_acquire(mbox->mutex_idx);
-        }
-
-        // 2. 读取数据
-        while (mbox->nbytes > 0 && bytes_read < msg_length)
-        {
-            data[bytes_read] = mbox->buffer[mbox->head];
-            mbox->head = (mbox->head + 1) % MAX_MBOX_LENGTH;
-            mbox->nbytes--;
-            bytes_read++;
-        }
-        while(do_unblock(&mbox->send_queue));
+        blocked_times++;
+        do_mutex_lock_release(mbox->mutex_idx);
+        int cpu_id = get_current_cpu_id();
+        do_block(&current_running[cpu_id]->list, &mbox->recv_queue);        
+        do_mutex_lock_acquire(mbox->mutex_idx);
     }
+
+    // recieve as much as possible
+    while (mbox->nbytes > 0 && bytes_read < msg_length)
+    {
+        data[bytes_read] = mbox->buffer[mbox->head];
+        mbox->head = (mbox->head + 1) % MAX_MBOX_LENGTH;
+        mbox->nbytes--;
+        bytes_read++;
+    }
+
+    while(do_unblock(&mbox->send_queue));
 
     do_mutex_lock_release(mbox->mutex_idx);
     return bytes_read; 

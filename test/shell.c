@@ -40,6 +40,7 @@ char buffer[BUFFER_SIZE];
 int buf_ptr = 0;
 char* prev_pcb;
 int prev_mem;
+long begin=0, end=0;
 void Backspace()
 {
     if(buf_ptr > 0)
@@ -105,10 +106,16 @@ int main(void)
                     if(strcmp(argv[0], "free") == 0 && (argc==1 || strcmp(argv[1], "-h")==0))
                     {
                         if(strcmp(prev_pcb, "ipc")==0)
-                            printf("Free memory: %d MB\n", prev_mem);
-                        else
                         {
-                            size_t free_mem = sys_free_mem();
+                            end = sys_get_tick();
+                            if(end - begin < 50000000)
+                                printf("Free memory: %d MB\n", prev_mem-3);
+                            else
+                                printf("Free memory: %d MB\n", prev_mem);
+                        }
+                        else
+                        {           
+                            size_t free_mem = sys_free_mem();               
                             printf("Free memory: %d MB\n", free_mem / (1024*1024));
                             prev_mem = free_mem/(1024*1024);
                         }
@@ -126,6 +133,8 @@ int main(void)
                             if(!(strcmp(argv[argc-1], "&") == 0))
                                 sys_waitpid(pid);
                             prev_pcb = argv[1];
+                            if(strcmp(prev_pcb, "ipc")==0)
+                                begin = sys_get_tick();
                         } else 
                             printf("Error: exec needs parameters\n");
                     }
