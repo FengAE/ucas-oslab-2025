@@ -109,7 +109,7 @@ void do_semaphore_up(int sema_idx);
 void do_semaphore_down(int sema_idx);
 void do_semaphore_destroy(int sema_idx);
 
-#define MAX_MBOX_LENGTH (64)
+#define MAX_MBOX_LENGTH (4096)
 
 typedef struct mailbox
 {

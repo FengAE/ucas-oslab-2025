@@ -88,7 +88,7 @@ void shm_page_dt(uintptr_t addr);
 
 // TODO [P4-task5]: zero copy pipe
 #define MAX_PIPES 16    // pipe num
-#define PIPE_SIZE 4096 
+#define PIPE_SIZE 1024
 #define PIPE_LOCK_KEY_BASE 2000
 typedef struct {
     uintptr_t load_addr; // pa: if is_swap=0; disk pos: if is_swap=1
