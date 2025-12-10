@@ -313,13 +313,13 @@ int main(int argc, char *argv[])
 {
 	char *prog_name = (char *)"ipc";
 
-	// if (argc >= 3 && strcmp(argv[1], "mbox") == 0)
-	// {
-	// 	if (strcmp(argv[2], "send") == 0)
-	// 		return mailbox_sender();
-	// 	if (strcmp(argv[2], "recv") == 0)
-	// 		return mailbox_receiver();
-	// }
+	if (argc >= 3 && strcmp(argv[1], "mbox") == 0)
+	{
+		if (strcmp(argv[2], "send") == 0)
+			return mailbox_sender();
+		if (strcmp(argv[2], "recv") == 0)
+			return mailbox_receiver();
+	}
 
 	if (argc >= 3 && strcmp(argv[1], "pipe") == 0)
 	{
@@ -331,7 +331,7 @@ int main(int argc, char *argv[])
 
 	sys_move_cursor(0, ALL_TEST_START);
 	printf("ipc_perf: comparing mailbox vs pipe with %ld byte payloads\n", (long)MSG_BYTES);
-	// run_mailbox_test(prog_name);
+	run_mailbox_test(prog_name);
 	run_pipe_test(prog_name);
 	sys_move_cursor(0, ALL_TEST_FINISH);
 	printf("ipc_perf: done\n");

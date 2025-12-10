@@ -252,7 +252,6 @@ ptr_t swap_out()
 void swap_in(uintptr_t stval, PTE *pte) 
 {
     int swap_idx = (*pte & PTE_PFN_MASK) >> _PAGE_PFN_SHIFT;
-
     uintptr_t new_page_kva = get_user_page();
     uintptr_t new_page_pa = kva2pa(new_page_kva);
 

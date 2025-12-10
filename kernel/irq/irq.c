@@ -41,6 +41,27 @@ void handle_page_fault(regs_context_t *regs, uint64_t stval, uint64_t scause)
     int cpu_id = get_current_cpu_id();
     uintptr_t pgdir = current_running[cpu_id]->pgdir;
     PTE* pte = get_pte_ptr(pgdir, stval);
+    PTE pte_val = pte ? *pte : 0;
+    if (pte_val & _PAGE_PRESENT) 
+    {
+        int need_flush = 0;
+        switch (scause) {
+            case EXCC_INST_PAGE_FAULT:
+                if (pte_val & _PAGE_EXEC) need_flush = 1;
+                break;        
+            case EXCC_LOAD_PAGE_FAULT:
+                if (pte_val & _PAGE_READ) need_flush = 1;
+                break;               
+            case EXCC_STORE_PAGE_FAULT:
+                if (pte_val & _PAGE_WRITE)  need_flush = 1;
+                break;
+        }
+        if (need_flush) 
+        {   // multi-core: core 0 flush stval->valid, but core 1 not flush cause page fault
+            local_flush_tlb_page(stval);
+            return;
+        }
+    }
 
     if (pte && (*pte & _PAGE_SWAP))
         swap_in(stval, pte);
