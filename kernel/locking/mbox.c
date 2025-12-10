@@ -81,37 +81,38 @@ void do_mbox_close(int mbox_idx)
 
 int do_mbox_send(int mbox_idx, void *msg, int msg_length)
 {
-    if (mbox_idx < 0 || mbox_idx >= MBOX_NUM || msg == NULL) return -1;
-    if (msg_length > MAX_MBOX_LENGTH) return -1;
-
+    if (mbox_idx < 0 || mbox_idx >= MBOX_NUM || msg == NULL) return -1;    
     mailbox_t *mbox = &mboxes[mbox_idx];
     int blocked_times = 0;
     char* data = (char*)msg;
+    int bytes_sent = 0; 
 
-    // Acquire the mailbox mutex
     do_mutex_lock_acquire(mbox->mutex_idx);
-    // Wait until there is enough space
-    while (MAX_MBOX_LENGTH - mbox->nbytes < msg_length) 
-    {
-        blocked_times++;
-        do_mutex_lock_release(mbox->mutex_idx);
-        int cpu_id = get_current_cpu_id();
-        do_block(&current_running[cpu_id]->list, &mbox->send_queue);
-        do_mutex_lock_acquire(mbox->mutex_idx);
-    }
 
-    // Perform write
-    for (int i = 0; i < msg_length; i++) 
+    while (bytes_sent < msg_length) 
     {
-        mbox->buffer[mbox->tail] = data[i];
-        mbox->tail = (mbox->tail + 1) % MAX_MBOX_LENGTH;
+        while (mbox->nbytes >= MAX_MBOX_LENGTH) 
+        {
+            blocked_times++;
+            do_mutex_lock_release(mbox->mutex_idx);
+            int cpu_id = get_current_cpu_id();
+            do_block(&current_running[cpu_id]->list, &mbox->send_queue);
+            do_mutex_lock_acquire(mbox->mutex_idx);
+        }
+
+        while (mbox->nbytes < MAX_MBOX_LENGTH && bytes_sent < msg_length)
+        {
+            mbox->buffer[mbox->tail] = data[bytes_sent];
+            mbox->tail = (mbox->tail + 1) % MAX_MBOX_LENGTH;
+            mbox->nbytes++;
+            bytes_sent++;
+        }
+
+        while(do_unblock(&mbox->recv_queue));
     }
-    mbox->nbytes += msg_length;
-    // Wake up receivers
-    while(do_unblock(&mbox->recv_queue));
 
     do_mutex_lock_release(mbox->mutex_idx);
-    return blocked_times;
+    return bytes_sent; 
 }
 
 int do_mbox_recv(int mbox_idx, void *msg, int msg_length)
@@ -120,28 +121,32 @@ int do_mbox_recv(int mbox_idx, void *msg, int msg_length)
     mailbox_t *mbox = &mboxes[mbox_idx];
     int blocked_times = 0;
     char* data = (char*)msg;
+    int bytes_read = 0;
+
     do_mutex_lock_acquire(mbox->mutex_idx);
 
-    // Wait until there is enough data
-    while (mbox->nbytes < msg_length) 
+    while (bytes_read < msg_length) 
     {
-        blocked_times++;
-        do_mutex_lock_release(mbox->mutex_idx);
-        int cpu_id = get_current_cpu_id();
-        do_block(&current_running[cpu_id]->list, &mbox->recv_queue);        
-        do_mutex_lock_acquire(mbox->mutex_idx);
+        while (mbox->nbytes == 0) 
+        {
+            blocked_times++;
+            do_mutex_lock_release(mbox->mutex_idx);
+            int cpu_id = get_current_cpu_id();
+            do_block(&current_running[cpu_id]->list, &mbox->recv_queue);        
+            do_mutex_lock_acquire(mbox->mutex_idx);
+        }
+
+        // 2. 读取数据
+        while (mbox->nbytes > 0 && bytes_read < msg_length)
+        {
+            data[bytes_read] = mbox->buffer[mbox->head];
+            mbox->head = (mbox->head + 1) % MAX_MBOX_LENGTH;
+            mbox->nbytes--;
+            bytes_read++;
+        }
+        while(do_unblock(&mbox->send_queue));
     }
 
-    // Perform Read
-    for (int i = 0; i < msg_length; i++) 
-    {
-        data[i] = mbox->buffer[mbox->head];
-        mbox->head = (mbox->head + 1) % MAX_MBOX_LENGTH;
-    }
-    mbox->nbytes -= msg_length;
-    // Wake up senders
-    while(do_unblock(&mbox->send_queue));
     do_mutex_lock_release(mbox->mutex_idx);
-
-    return blocked_times;
+    return bytes_read; 
 }

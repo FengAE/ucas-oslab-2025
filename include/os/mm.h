@@ -31,6 +31,7 @@
 #include <pgtable.h>
 #include <os/kernel.h>
 #include <os/list.h>
+#include <os/lock.h>
 
 #define MAP_KERNEL 1
 #define MAP_USER 2
@@ -38,6 +39,7 @@
 #define PAGE_SIZE 4096 // 4K
 #define INIT_KERNEL_STACK 0xffffffc052000000
 #define FREEMEM_KERNEL (INIT_KERNEL_STACK+PAGE_SIZE*NR_CPUS)
+extern ptr_t kernMemCurr;
 
 /* Rounding; only works for n = power of two */
 #define ROUND(a, n)     (((((uint64_t)(a))+(n)-1)) & ~((n)-1))
@@ -68,8 +70,8 @@ void recycle_page_table(uintptr_t pgdir);
 
 // [p4-task3]
 #define PAGE_SECTORS PAGE_SIZE/512
-#define SWAP_START_SEC 300
-#define SWAP_MAX_PAGES 200000 // max swap num supported
+#define SWAP_START_SEC 500
+#define SWAP_MAX_PAGES 100000 // max swap num supported
 void swap_in(uintptr_t stval, PTE *pte);
 ptr_t swap_out();
 void list_add_page(uintptr_t pa, PTE *pte);
@@ -86,7 +88,8 @@ void shm_page_dt(uintptr_t addr);
 
 // TODO [P4-task5]: zero copy pipe
 #define MAX_PIPES 16    // pipe num
-#define PIPE_SIZE 128 
+#define PIPE_SIZE 4096 
+#define PIPE_LOCK_KEY_BASE 2000
 typedef struct {
     uintptr_t load_addr; // pa: if is_swap=0; disk pos: if is_swap=1
     int is_swap;       
@@ -99,6 +102,7 @@ typedef struct {
     int head; 
     int tail; 
     int count;
+    int mutex;
     list_head wait_queue;
 } pipe_t; 
 

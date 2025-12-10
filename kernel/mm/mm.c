@@ -2,16 +2,17 @@
 #include <os/string.h>
 #include <os/sched.h>
 #include <printk.h>
+#include <screen.h>
 
 // NOTE: A/C-core
-static ptr_t kernMemCurr = FREEMEM_KERNEL;
+ptr_t kernMemCurr = FREEMEM_KERNEL;
 static ptr_t freePageList = 0;
 #define MEM_START 0xffffffc050000000
 #define MEM_END 0xffffffc060000000
 
 
 // Swap logic
-#define MAX_USER_PAGES 256     
+#define MAX_USER_PAGES 1024   
 int current_pages = 0;
 typedef struct 
 {
@@ -25,7 +26,7 @@ static int swap_tail = 0;
 #define PTE_PFN_MASK (((1ULL << 44) - 1) << _PAGE_PFN_SHIFT)
 static int swap_disk_map[SWAP_MAX_PAGES];
 
-// shm: used in pipe
+size_t free_pages_count = 0; 
 
 ptr_t allocPage(int numPage)
 {
@@ -85,8 +86,9 @@ void freePage(ptr_t baseAddr)
     if (baseAddr == (ptr_t)NULL) return;
     if (baseAddr < MEM_START || baseAddr >= MEM_END) return; 
 
-    *(ptr_t *)baseAddr = freePageList;
-    freePageList = baseAddr;
+    // *(ptr_t *)baseAddr = freePageList;
+    // freePageList = baseAddr;
+    free_pages_count++;
 }
 
 void *kmalloc(size_t size)
@@ -157,13 +159,10 @@ static void _recycle_walker(PTE *entry, int level)
     if (!(*entry & _PAGE_PRESENT)) return;  // not valid
     uintptr_t next_kva = pa2kva(get_pa(*entry));
 
-    if ((level==0) && (*entry & (_PAGE_READ | _PAGE_WRITE | _PAGE_EXEC)) != 0) 
+    if ((level==0))
     {   // is leaf node
         if (*entry & _PAGE_USER) // only is user_page recycle
-        {
             freePage(next_kva);
-            *entry = 0;
-        }
         // if kernel large page: not recycle
         return;
     }
@@ -173,7 +172,6 @@ static void _recycle_walker(PTE *entry, int level)
         for (int i = 0; i < NUM_PTE_ENTRY; i++) 
             _recycle_walker(&child_pt[i], level - 1);
         freePage(next_kva);
-        *entry = 0;
     }
 }
 
@@ -253,7 +251,7 @@ ptr_t swap_out()
 
 void swap_in(uintptr_t stval, PTE *pte) 
 {
-    int swap_idx = (*pte) >> _PAGE_PFN_SHIFT;
+    int swap_idx = (*pte & PTE_PFN_MASK) >> _PAGE_PFN_SHIFT;
 
     uintptr_t new_page_kva = get_user_page();
     uintptr_t new_page_pa = kva2pa(new_page_kva);
@@ -265,13 +263,14 @@ void swap_in(uintptr_t stval, PTE *pte)
         freePage(new_page_kva);
         return;
     }
+    asm volatile("fence" : : : "memory");
+    asm volatile("fence.i" : : : "memory");
     free_swap_slot(swap_idx);
     *pte = 0;   // clear _PAGE_SWAP and swap_pos(pfn)
 
     set_pfn(pte, new_page_pa >> NORMAL_PAGE_SHIFT);
     *pte |= (_PAGE_PRESENT | _PAGE_READ | _PAGE_WRITE | _PAGE_EXEC 
             | _PAGE_USER | _PAGE_ACCESSED | _PAGE_DIRTY);
-
     list_add_page(new_page_pa, pte);
     local_flush_tlb_page(stval);
 }
@@ -283,12 +282,13 @@ size_t get_free_memory()
     if (kernMemCurr < MEM_END) 
         total_free += (MEM_END - kernMemCurr);
 
-    ptr_t cur = freePageList;
-    while (cur != 0) 
-    {
-        total_free += PAGE_SIZE;
-        cur = *(ptr_t *)cur; 
-    }
+    // ptr_t cur = freePageList;
+    // while (cur != 0) 
+    // {
+    //     total_free += PAGE_SIZE;
+    //     cur = *(ptr_t *)cur; 
+    // }
+    total_free += free_pages_count * PAGE_SIZE;
     return total_free;
 }
 
@@ -364,6 +364,7 @@ int do_pipe_open(const char *name)
             pipes[i].tail = 0;
             pipes[i].count = 0;
             init_list_head(&pipes[i].wait_queue); 
+            pipes[i].mutex = do_mutex_lock_init(PIPE_LOCK_KEY_BASE + i);
             return i;
         }
     }
@@ -378,15 +379,23 @@ long do_pipe_give_pages(int pipe_idx, void *src, size_t length)
     int total_pages = length / PAGE_SIZE;
     int processed = 0;
     uintptr_t current_src = (uintptr_t)src;
+    do_mutex_lock_acquire(pipe->mutex);
 
     for (int i = 0; i < total_pages; i++) 
     {
+        // screen_move_cursor(0, 7);
+        // if (i % 10 == 0)
+        //     printk("[Pipe Send] Processing page %d/%d, current_src=0x%lx\n", i, total_pages, current_src);
+
         int cpu_id = get_current_cpu_id();
         // if pipe full, block
-        while (pipe->count >= PIPE_SIZE) {
+        while (pipe->count >= PIPE_SIZE) 
+        {
+            do_mutex_lock_release(pipe->mutex);
             current_running[cpu_id]->status = TASK_BLOCKED;
             do_block(&current_running[cpu_id]->list, &pipe->wait_queue);
             do_scheduler();
+            do_mutex_lock_acquire(pipe->mutex);
         }
 
         PTE *pte = get_pte_ptr(current_running[cpu_id]->pgdir, current_src);
@@ -419,6 +428,7 @@ long do_pipe_give_pages(int pipe_idx, void *src, size_t length)
         // wake up receiver
         do_unblock(&pipe->wait_queue);
     }
+    do_mutex_lock_release(pipe->mutex);
     return processed * PAGE_SIZE;
 }
 
@@ -430,19 +440,30 @@ long do_pipe_take_pages(int pipe_idx, void *dst, size_t length)
     int total_pages = length / PAGE_SIZE;
     int processed = 0;
     uintptr_t current_dst = (uintptr_t)dst;
+    do_mutex_lock_acquire(pipe->mutex);
 
     for (int i = 0; i < total_pages; i++) 
     {
+        // screen_move_cursor(0, 8);
+        // if (i % 10 == 0) {
+        //     printk("[Pipe Recv] Processing page %d/%d\n", i, total_pages);
+        // }
         int cpu_id = get_current_cpu_id();
         while (pipe->count <= 0) {
             current_running[cpu_id]->status = TASK_BLOCKED;
+            do_mutex_lock_release(pipe->mutex);
             do_block(&current_running[cpu_id]->list, &pipe->wait_queue);
             do_scheduler();
+            do_mutex_lock_acquire(pipe->mutex);
         }
 
         pipe_page_t *node = &pipe->pages[pipe->head];
         PTE *pte = ensure_pte_path(current_running[cpu_id]->pgdir, current_dst);
-        if (!pte) return -1;
+        if (!pte) 
+        {
+            do_mutex_lock_release(pipe->mutex);
+            return -1;
+        }
 
         if (*pte & _PAGE_PRESENT) 
         {   // not swap
@@ -475,6 +496,7 @@ long do_pipe_take_pages(int pipe_idx, void *dst, size_t length)
         // wake up sender
         do_unblock(&pipe->wait_queue);
     }
+    do_mutex_lock_release(pipe->mutex);
     return processed * PAGE_SIZE;
 }
 

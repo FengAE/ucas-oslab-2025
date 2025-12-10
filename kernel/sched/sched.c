@@ -242,6 +242,7 @@ void do_exit()
     if(current_running[cpu_id]->pgdir != 0)
     {
         freePage(current_running[cpu_id]->kernel_stack_base - PAGE_SIZE);
+        recycle_page_table(current_running[cpu_id]->pgdir);
         freePage(current_running[cpu_id]->pgdir);
         current_running[cpu_id]->pgdir = 0;
     }
@@ -284,6 +285,7 @@ int do_kill(pid_t pid)
     if(pcb[i].pgdir != 0)
     {
         freePage(pcb[i].kernel_stack_base - PAGE_SIZE);
+        recycle_page_table(pcb[i].pgdir);
         freePage(pcb[i].pgdir);
         pcb[i].pgdir = 0;
     }

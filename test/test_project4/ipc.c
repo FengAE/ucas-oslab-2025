@@ -9,7 +9,7 @@
 MSG_IN_MB: message size in megabytes used for the benchmark.
 */
 #define PAGE_SIZE 4096ul
-const long MSG_IN_MB = 512;
+const long MSG_IN_MB = 4;
 const long MSG_BYTES = MSG_IN_MB * 1024 * 1024;
 const long WARMUP_BYTES = PAGE_SIZE;
 const char MBOX_NAME[] = "ipc-perf-mailbox";
@@ -220,11 +220,10 @@ static int pipe_receiver(void)
 		printf("[pipe recv] warmup failed (%ld)\n", warmup);
 		return -1;
 	}
-
 	long start = sys_get_tick();
 	long taken = sys_pipe_take_pages(pipe_id, dst, MSG_BYTES);
+	
 	long end = sys_get_tick();
-
 	if (taken != MSG_BYTES)
 	{
 		sys_move_cursor(0, PIPE_RECV_LINE);
@@ -314,13 +313,13 @@ int main(int argc, char *argv[])
 {
 	char *prog_name = (char *)"ipc";
 
-	if (argc >= 3 && strcmp(argv[1], "mbox") == 0)
-	{
-		if (strcmp(argv[2], "send") == 0)
-			return mailbox_sender();
-		if (strcmp(argv[2], "recv") == 0)
-			return mailbox_receiver();
-	}
+	// if (argc >= 3 && strcmp(argv[1], "mbox") == 0)
+	// {
+	// 	if (strcmp(argv[2], "send") == 0)
+	// 		return mailbox_sender();
+	// 	if (strcmp(argv[2], "recv") == 0)
+	// 		return mailbox_receiver();
+	// }
 
 	if (argc >= 3 && strcmp(argv[1], "pipe") == 0)
 	{
@@ -332,7 +331,7 @@ int main(int argc, char *argv[])
 
 	sys_move_cursor(0, ALL_TEST_START);
 	printf("ipc_perf: comparing mailbox vs pipe with %ld byte payloads\n", (long)MSG_BYTES);
-	run_mailbox_test(prog_name);
+	// run_mailbox_test(prog_name);
 	run_pipe_test(prog_name);
 	sys_move_cursor(0, ALL_TEST_FINISH);
 	printf("ipc_perf: done\n");

@@ -3,8 +3,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-// MAX_USER_PAGES = 256
-#define TEST_PAGE_NUM 350 
+// MAX_USER_PAGES = 1024
+#define TEST_PAGE_NUM 1100 
 #define PAGE_SIZE 4096
 
 #define MEM_BASE_ADDR 0x10000000 
