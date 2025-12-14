@@ -12,6 +12,7 @@
 #include <os/list.h>
 #include <os/time.h>
 #include <os/ioremap.h>
+#include <os/net.h>
 #include <sys/syscall.h>
 #include <screen.h>
 #include <e1000.h>
@@ -318,6 +319,8 @@ static void init_syscall(void)
     syscall[SYSCALL_PIPE_OPEN] = (long (*)())do_pipe_open;
     syscall[SYSCALL_PIPE_GIVE] = (long (*)())do_pipe_give_pages;
     syscall[SYSCALL_PIPE_TAKE] = (long (*)())do_pipe_take_pages;
+    syscall[SYSCALL_NET_SEND] = (long (*)())do_net_send;
+    syscall[SYSCALL_NET_RECV] = (long (*)())do_net_recv;
 }
 /************************************************************/
 

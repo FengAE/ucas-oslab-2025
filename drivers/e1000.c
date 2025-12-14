@@ -55,12 +55,26 @@ static void e1000_reset(void)
 static void e1000_configure_tx(void)
 {
     /* TODO: [p5-task1] Initialize tx descriptors */
-
+    for (int i = 0; i < TXDESCS; i++) 
+    {
+        memset(&tx_desc_array[i], 0, sizeof(struct e1000_tx_desc));
+        tx_desc_array[i].addr = kva2pa((uintptr_t)tx_pkt_buffer[i]); 
+        tx_desc_array[i].status  = E1000_TXD_STAT_DD;   // free
+    }
     /* TODO: [p5-task1] Set up the Tx descriptor base address and length */
+    uintptr_t tx_base = kva2pa((uintptr_t)tx_desc_array);
+    e1000_write_reg(e1000, E1000_TDBAL, (uint32_t)(tx_base & 0x00000000ffffffff));
+    e1000_write_reg(e1000, E1000_TDBAH, (uint32_t)((tx_base & 0xffffffff00000000)>>32));
+    e1000_write_reg(e1000, E1000_TDLEN, sizeof(tx_desc_array));
 
 	/* TODO: [p5-task1] Set up the HW Tx Head and Tail descriptor pointers */
+    e1000_write_reg(e1000, E1000_TDH, 0);
+    e1000_write_reg(e1000, E1000_TDT, 0);
 
     /* TODO: [p5-task1] Program the Transmit Control Register */
+    e1000_write_reg(e1000, E1000_TCTL,
+        (0x40 << 12) | (0x10 << 4) | E1000_TCTL_PSP | E1000_TCTL_EN);
+    local_flush_dcache();
 }
 
 /**
@@ -105,8 +119,30 @@ void e1000_init(void)
 int e1000_transmit(void *txpacket, int length)
 {
     /* TODO: [p5-task1] Transmit one packet from txpacket */
+    local_flush_dcache();
+    uint32_t tail = e1000_read_reg(e1000, E1000_TDT);
 
-    return 0;
+    // fill describer
+    struct e1000_tx_desc *desc = &tx_desc_array[tail];
+    if (!(desc->status & E1000_TXD_STAT_DD))
+        return -1;   // ring full
+    if (length <= 0)
+        return 0;
+
+    desc->length = length > TX_PKT_SIZE ? TX_PKT_SIZE : length;
+    memcpy(tx_pkt_buffer[tail], txpacket, desc->length);
+    desc->cmd = E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS; 
+    desc->status = 0;   // dd=0: not finished  
+
+    e1000_write_reg(e1000, E1000_TDT, (tail+1)%TXDESCS);
+    printl("Transmit data len %d, in tail 0x%x\n", length, tail);
+    local_flush_dcache();
+
+    uint32_t tdh = e1000_read_reg(e1000, E1000_TDH);
+    uint32_t tdt = e1000_read_reg(e1000, E1000_TDT);
+    printl("TX Debug: Length=%d, TDT=%d, TDH=%d\n", length, tdt, tdh);
+    local_flush_dcache();
+    return desc->length;
 }
 
 /**

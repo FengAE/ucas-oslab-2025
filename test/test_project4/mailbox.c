@@ -34,10 +34,7 @@ void ring_buffer_append(char ch)
 }
 char ring_buffer_pop()
 {
-<<<<<<< HEAD
     while (ring_buffer_empty()) sys_yield();
-=======
-    while (ring_buffer_empty());
 }
 void get_str_from_ring_buffer(char* buf, int len)
 {
