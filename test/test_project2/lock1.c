@@ -1,11 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
 #include <unistd.h>
-<<<<<<< HEAD
-// #include <kernel.h>
-=======
->>>>>>> framework/Project4
-
 // LOCK2_KEY is the key of this task. You can define it as you wish.
 // We use 42 here because it is "Answer to the Ultimate Question of Life,
 // the Universe, and Everything" :)
@@ -13,13 +8,6 @@
 
 static char blank[] = {"                                             "};
 
-<<<<<<< HEAD
-=======
-/**
- * NOTE: bios APIs is used for p2-task1 and p2-task2. You need to change
- * to syscall APIs after implementing syscall in p2-task3!
-*/
->>>>>>> framework/Project4
 int main(void)
 {
     int print_location = 2;
@@ -35,10 +23,14 @@ int main(void)
         printf("> [TASK] Applying for a lock.\n");
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         // sys_yield();
 =======
         sys_yield();
 >>>>>>> framework/Project4
+=======
+        // sys_yield();
+>>>>>>> upstream/Project5
 
         sys_mutex_acquire(mutex_id);
 
@@ -47,10 +39,14 @@ int main(void)
             sys_move_cursor(0, print_location);
             printf("> [TASK] Has acquired lock and running.(%d)\n", i);
 <<<<<<< HEAD
+<<<<<<< HEAD
             // sys_yield();
 =======
             sys_yield();
 >>>>>>> framework/Project4
+=======
+            // sys_yield();
+>>>>>>> upstream/Project5
         }
 
         sys_move_cursor(0, print_location);
@@ -62,15 +58,22 @@ int main(void)
         sys_mutex_release(mutex_id);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         // sys_yield();
 =======
         sys_yield();
 >>>>>>> framework/Project4
+=======
+        // sys_yield();
+>>>>>>> upstream/Project5
     }
 
     return 0;
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> upstream/Project5
 
 // int main(void)
 // {
@@ -110,5 +113,8 @@ int main(void)
 
 //     return 0;
 // }
+<<<<<<< HEAD
 =======
 >>>>>>> framework/Project4
+=======
+>>>>>>> upstream/Project5

@@ -34,11 +34,10 @@ void ring_buffer_append(char ch)
 }
 char ring_buffer_pop()
 {
+<<<<<<< HEAD
     while (ring_buffer_empty()) sys_yield();
-
-    char ret = ring_buffer[ring_buffer_head];
-    ring_buffer_head = (ring_buffer_head + 1) % BUFFER_LENGTH;
-    return ret;
+=======
+    while (ring_buffer_empty());
 }
 void get_str_from_ring_buffer(char* buf, int len)
 {
@@ -167,7 +166,10 @@ void send_thread(void *arg)
             send_buf[i * 2 + 1] = send_buf[i];
             send_buf[i * 2] = id;
         }
+<<<<<<< HEAD
          
+=======
+>>>>>>> upstream/Project5
         sys_mbox_send(mq[target], send_buf, 2*len);
         bytes[target] += len;
 
@@ -181,7 +183,16 @@ void send_thread(void *arg)
 
 int main(int argc, char* argv[])
 {
+<<<<<<< HEAD
     char id = argv[2][0];
+=======
+    if (argc != 2) {
+        display_usage();
+        return -1;
+    }
+
+    char id = argv[1][0];
+>>>>>>> upstream/Project5
     if (id != 'a' && id != 'b' && id != 'c') {
         display_usage();
         return -1;

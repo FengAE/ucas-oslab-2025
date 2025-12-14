@@ -11,8 +11,10 @@
 #include <os/mm.h>
 #include <os/list.h>
 #include <os/time.h>
+#include <os/ioremap.h>
 #include <sys/syscall.h>
 #include <screen.h>
+#include <e1000.h>
 #include <printk.h>
 #include <assert.h>
 #include <type.h>
@@ -367,8 +369,19 @@ int main(void)
         // Init Process Control Blocks |•'-'•) ✧
         init_pcb();
         printk("> [INIT] PCB initialization succeeded.\n");
-        // Read CPU frequency (｡•ᴗ-)_
+
+        // Read Flatten Device Tree (｡•ᴗ-)_
         time_base = bios_read_fdt(TIMEBASE);
+        e1000 = (volatile uint8_t *)bios_read_fdt(ETHERNET_ADDR);
+        uint64_t plic_addr = bios_read_fdt(PLIC_ADDR);
+        uint32_t nr_irqs = (uint32_t)bios_read_fdt(NR_IRQS);
+        printk("> [INIT] e1000: %lx, plic_addr: %lx, nr_irqs: %lx.\n", e1000, plic_addr, nr_irqs);
+
+        // IOremap
+        plic_addr = (uintptr_t)ioremap((uint64_t)plic_addr, 0x4000 * NORMAL_PAGE_SIZE);
+        e1000 = (uint8_t *)ioremap((uint64_t)e1000, 8 * NORMAL_PAGE_SIZE);
+        printk("> [INIT] IOremap initialization succeeded.\n");
+
 
         // Init lock mechanism o(´^｀)o
         init_locks();
@@ -382,12 +395,13 @@ int main(void)
         init_syscall();
         printk("> [INIT] System call initialized successfully.\n");
 
-        /*
-         * Just start kernel with VM and print this string
-         * in the first part of task 1 of project 4.
-         * NOTE: if you use SMP, then every CPU core should call
-         *  `kernel_brake()` to stop executing!
-         */
+        // TODO: [p5-task4] Init plic
+        // plic_init(plic_addr, nr_irqs);
+        // printk("> [INIT] PLIC initialized successfully. addr = 0x%lx, nr_irqs=0x%x\n", plic_addr, nr_irqs);
+
+        // Init network device
+        e1000_init();
+        printk("> [INIT] E1000 device initialized successfully.\n");
 
         // Init screen (QAQ)
         init_screen();   
@@ -426,6 +440,7 @@ int main(void)
     // TODO: [p2-task4] Setup timer interrupt and enable all interrupt globally
     // NOTE: The function of sstatus.sie is different from sie's
     set_timer(get_ticks() + TIMER_INTERVAL);
+
     // Infinite while loop, where CPU stays in a low-power state (QAQQQQQQQQQQQ)
     while (1)
     {

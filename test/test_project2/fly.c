@@ -1,9 +1,13 @@
 #include <stdio.h>
 #include <unistd.h>
 <<<<<<< HEAD
+<<<<<<< HEAD
 // #include <kernel.h>
 =======
 >>>>>>> framework/Project4
+=======
+// #include <kernel.h>
+>>>>>>> upstream/Project5
 
 /**
  * The ascii airplane is designed by Joan Stark
@@ -49,11 +53,7 @@ int main(void)
             sys_move_cursor(i, j + 6);
             printf("%s", plane7);
         }
-<<<<<<< HEAD
         // sys_yield();
-=======
-        sys_yield();
->>>>>>> framework/Project4
 
         sys_move_cursor(0, j + 0);
         printf("%s", blank);
@@ -77,7 +77,6 @@ int main(void)
         printf("%s", blank);
     }
 }
-<<<<<<< HEAD
 
 // int main(void)
 // {
@@ -133,5 +132,8 @@ int main(void)
 //         kernel_print("%s", (long)blank, 0);
 //     }
 // }
+<<<<<<< HEAD
 =======
 >>>>>>> framework/Project4
+=======
+>>>>>>> upstream/Project5

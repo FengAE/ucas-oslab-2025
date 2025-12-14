@@ -296,3 +296,15 @@ long sys_pipe_take_pages(int pipe_idx, void *dst, size_t length)
     return invoke_syscall(SYSCALL_PIPE_TAKE, pipe_idx, (long)dst, length, IGNORE, IGNORE);
 }
 /************************************************************/
+
+int sys_net_send(void *txpacket, int length) 
+{ 
+    /* TODO: [p5-task1] call invoke_syscall to implement sys_net_send */ 
+    return invoke_syscall(SYSCALL_NET_SEND, (long)txpacket, length, IGNORE, IGNORE, IGNORE);
+} 
+
+int sys_net_recv(void *rxbuffer, int pkt_num, int *pkt_lens) 
+{ 
+    /* TODO: [p5-task2] call invoke_syscall to implement sys_net_recv */ 
+    return invoke_syscall(SYSCALL_NET_RECV, (long)rxbuffer, pkt_num, (long)pkt_lens, IGNORE, IGNORE); 
+}

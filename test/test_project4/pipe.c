@@ -124,7 +124,11 @@ int main(int argc, char *argv[])
 	if (argc > 1 && strcmp(argv[1], "recv") == 0)
 		return pipe_receiver();
 
+<<<<<<< HEAD
 	char *prog_name = (char *)"pipe";
+=======
+	char *prog_name = argc > 0 ? argv[0] : (char *)"pipe";
+>>>>>>> upstream/Project5
 
 	if (pipe_self_test() < 0)
 		printf("pipe: self test failed\n");
@@ -138,7 +142,11 @@ int main(int argc, char *argv[])
 	if (receiver == 0)
 	{
 		printf("pipe: failed to start receiver\n");
+<<<<<<< HEAD
 		return 0;
+=======
+		return;
+>>>>>>> upstream/Project5
 	}
 
 	sys_sleep(1);
@@ -148,7 +156,11 @@ int main(int argc, char *argv[])
 	{
 		printf("pipe: failed to start sender\n");
 		sys_kill(receiver);
+<<<<<<< HEAD
 		return 0;
+=======
+		return;
+>>>>>>> upstream/Project5
 	}
 
 	sys_waitpid(receiver);

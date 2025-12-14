@@ -5,10 +5,8 @@
 #include <unistd.h>
 #include <assert.h>
 #include <string.h>
-
 int main(int argc, char* argv[])
 {
-	assert(argc > 1);
 	srand(clock());
 	long mem2 = 0;
 	uintptr_t mem1 = 0;
