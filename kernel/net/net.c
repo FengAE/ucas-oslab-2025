@@ -13,19 +13,65 @@ int do_net_send(void *txpacket, int length)
     // TODO: [p5-task1] Transmit one network packet via e1000 device
     // TODO: [p5-task3] Call do_block when e1000 transmit queue is full
     // TODO: [p5-task4] Enable TXQE interrupt if transmit queue is full
-    int send_bytes = e1000_transmit(txpacket, length);
-    return send_bytes;  // Bytes it has transmitted
+    int bytes_sent;
+    while (1) 
+    {
+        bytes_sent = e1000_transmit(txpacket, length);
+        if (bytes_sent > 0) 
+            break;       
+        local_flush_dcache(); 
+        uint32_t ims = e1000_read_reg(e1000, E1000_IMS);
+        e1000_write_reg(e1000, E1000_IMS, ims | E1000_IMS_TXQE);
+        local_flush_dcache();
+        
+        do_block(&(current_running[get_current_cpu_id()])->list, &send_block_queue);
+    }
+    return bytes_sent;  // Bytes it has transmitted
 }
 
 int do_net_recv(void *rxbuffer, int pkt_num, int *pkt_lens)
 {
     // TODO: [p5-task2] Receive one network packet via e1000 device
     // TODO: [p5-task3] Call do_block when there is no packet on the way
+    int recv_bytes = 0;
+    for(int i=0; i<pkt_num; i++)
+    {
+        pkt_lens[i] = e1000_poll(rxbuffer);
+        if(pkt_lens[i] <= 0)
+        {
+            do_block(&(current_running[get_current_cpu_id()])->list, &recv_block_queue);
+            continue;
+        }
+        recv_bytes += pkt_lens[i];
+        rxbuffer += pkt_lens[i];
+    }
+    return recv_bytes;  // Bytes it has received
+}
 
-    return 0;  // Bytes it has received
+void e1000_handle_txqe()
+{
+    while(send_block_queue.next != &send_block_queue)
+        do_unblock(&send_block_queue);
+}
+
+void e1000_handle_rxdmt0()
+{
+    while(recv_block_queue.next != &recv_block_queue)
+        do_unblock(&recv_block_queue);
 }
 
 void net_handle_irq(void)
 {
     // TODO: [p5-task4] Handle interrupts from network device
+    local_flush_dcache();
+    uint32_t icr = e1000_read_reg(e1000, E1000_ICR);
+    if (icr & E1000_ICR_TXQE) 
+    {
+        e1000_handle_txqe();
+        e1000_write_reg(e1000, E1000_IMC, E1000_IMC_TXQE);
+        local_flush_dcache();
+    }
+
+    if (icr & E1000_ICR_RXDMT0) 
+        e1000_handle_rxdmt0();
 }

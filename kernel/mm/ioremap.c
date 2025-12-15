@@ -22,6 +22,7 @@ void *ioremap(unsigned long phys_addr, unsigned long size)
     for(int i=0; i<num_pages; i++)
     {
         uintptr_t va = va_start + i*PAGE_SIZE;
+        uintptr_t current_pa = map_start + i * PAGE_SIZE;
         uint64_t vpn2 = (va >> 30) & 0x1FF;
         uint64_t vpn1 = (va >> 21) & 0x1FF;
         uint64_t vpn0 = (va >> 12) & 0x1FF;
@@ -49,8 +50,7 @@ void *ioremap(unsigned long phys_addr, unsigned long size)
         if ((pte_kva[vpn0] & _PAGE_PRESENT) == 0) 
         {
             // alloc data page (4KB)
-            uintptr_t data_page_kva = get_user_page();
-            set_pfn(&pte_kva[vpn0], kva2pa(data_page_kva) >> NORMAL_PAGE_SHIFT);
+            set_pfn(&pte_kva[vpn0], current_pa >> NORMAL_PAGE_SHIFT);
 
             set_attribute(&pte_kva[vpn0], 
                 _PAGE_PRESENT | _PAGE_READ | _PAGE_WRITE| 

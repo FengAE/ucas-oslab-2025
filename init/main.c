@@ -15,6 +15,7 @@
 #include <os/net.h>
 #include <sys/syscall.h>
 #include <screen.h>
+#include <plic.h>
 #include <e1000.h>
 #include <printk.h>
 #include <assert.h>
@@ -369,9 +370,6 @@ int main(void)
         bios_putstr("Hello OS!\n\r");
         bios_putstr(buf);
 
-        // Init Process Control Blocks |•'-'•) ✧
-        init_pcb();
-        printk("> [INIT] PCB initialization succeeded.\n");
 
         // Read Flatten Device Tree (｡•ᴗ-)_
         time_base = bios_read_fdt(TIMEBASE);
@@ -399,8 +397,8 @@ int main(void)
         printk("> [INIT] System call initialized successfully.\n");
 
         // TODO: [p5-task4] Init plic
-        // plic_init(plic_addr, nr_irqs);
-        // printk("> [INIT] PLIC initialized successfully. addr = 0x%lx, nr_irqs=0x%x\n", plic_addr, nr_irqs);
+        plic_init(plic_addr, nr_irqs);
+        printk("> [INIT] PLIC initialized successfully. addr = 0x%lx, nr_irqs=0x%x\n", plic_addr, nr_irqs);
 
         // Init network device
         e1000_init();
@@ -411,6 +409,9 @@ int main(void)
         // printk("> [MASTER] Core 0 Init Done. Releasing Kernel Lock.\n");
 
         init_pipes();
+
+        // Init Process Control Blocks |•'-'•) ✧
+        init_pcb();
 
         asm volatile(
 			"mv tp, %0"

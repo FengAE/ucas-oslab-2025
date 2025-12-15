@@ -4,6 +4,8 @@
 #include <os/string.h>
 #include <os/kernel.h>
 #include <os/mm.h>
+#include <os/net.h>
+#include <plic.h>
 #include <printk.h>
 #include <assert.h>
 #include <screen.h>
@@ -38,6 +40,7 @@ void handle_page_fault(regs_context_t *regs, uint64_t stval, uint64_t scause)
         do_exit(); 
         return;
     }
+    printl("page fault: %x\n", stval);
     int cpu_id = get_current_cpu_id();
     uintptr_t pgdir = current_running[cpu_id]->pgdir;
     PTE* pte = get_pte_ptr(pgdir, stval);
@@ -73,6 +76,14 @@ void handle_page_fault(regs_context_t *regs, uint64_t stval, uint64_t scause)
     
 }
 
+void handle_irq_ext(regs_context_t *regs, uint64_t stval, uint64_t scause)
+{
+    int32_t id = plic_claim();
+    if (id == PLIC_E1000_PYNQ_IRQ || id == PLIC_E1000_QEMU_IRQ) 
+        net_handle_irq();
+    plic_complete(id);
+}
+
 void handle_irq_timer(regs_context_t *regs, uint64_t stval, uint64_t scause)
 {
     // TODO: [p2-task4] clock interrupt handler.
@@ -105,6 +116,7 @@ void init_exception()
         irq_table[i] = handle_other;
     irq_table[IRQC_S_TIMER] = handle_irq_timer;
     irq_table[IRQC_S_SOFT]  = handle_irq_soft;
+    irq_table[IRQC_S_EXT] = handle_irq_ext;
 
     /* TODO: [p2-task3] set up the entrypoint of exceptions */
     setup_exception();

@@ -63,9 +63,12 @@ static void e1000_configure_tx(void)
     }
     /* TODO: [p5-task1] Set up the Tx descriptor base address and length */
     uintptr_t tx_base = kva2pa((uintptr_t)tx_desc_array);
+    // printl("TX Base PA: %lx\n", tx_base);
     e1000_write_reg(e1000, E1000_TDBAL, (uint32_t)(tx_base & 0x00000000ffffffff));
     e1000_write_reg(e1000, E1000_TDBAH, (uint32_t)((tx_base & 0xffffffff00000000)>>32));
-    e1000_write_reg(e1000, E1000_TDLEN, sizeof(tx_desc_array));
+    e1000_write_reg(e1000, E1000_TDLEN, TXDESCS * sizeof(struct e1000_tx_desc));
+
+    e1000_write_reg(e1000, E1000_TIPG, 0x0060200A);
 
 	/* TODO: [p5-task1] Set up the HW Tx Head and Tail descriptor pointers */
     e1000_write_reg(e1000, E1000_TDH, 0);
@@ -83,16 +86,30 @@ static void e1000_configure_tx(void)
 static void e1000_configure_rx(void)
 {
     /* TODO: [p5-task2] Set e1000 MAC Address to RAR[0] */
-
+    e1000_write_reg_array(e1000, E1000_RA, 0, 
+                        (enetaddr[3]<<24) | (enetaddr[2]<<16) | (enetaddr[1]<<8) | enetaddr[0]);
+    e1000_write_reg_array(e1000, E1000_RA, 1,
+                          E1000_RAH_AV | (enetaddr[5]<<8) | enetaddr[4]);
     /* TODO: [p5-task2] Initialize rx descriptors */
-
+    for (int i = 0; i < RXDESCS; i++) 
+    {
+        memset(&rx_desc_array[i], 0, sizeof(struct e1000_rx_desc));
+        rx_desc_array[i].addr = kva2pa((uintptr_t)rx_pkt_buffer[i]);
+        rx_desc_array[i].status = 0;
+    }
     /* TODO: [p5-task2] Set up the Rx descriptor base address and length */
-
+    uintptr_t rx_base = kva2pa((uintptr_t)rx_desc_array);
+    e1000_write_reg(e1000, E1000_RDBAL, (uint32_t)(rx_base & 0xFFFFFFFF));
+    e1000_write_reg(e1000, E1000_RDBAH, (uint32_t)(rx_base >> 32));
+    e1000_write_reg(e1000, E1000_RDLEN, RXDESCS * sizeof(struct e1000_rx_desc));
     /* TODO: [p5-task2] Set up the HW Rx Head and Tail descriptor pointers */
-
+    e1000_write_reg(e1000, E1000_RDH, 0);
+    e1000_write_reg(e1000, E1000_RDT, RXDESCS - 1);
     /* TODO: [p5-task2] Program the Receive Control Register */
-
+    e1000_write_reg(e1000, E1000_RCTL, E1000_RCTL_EN | E1000_RCTL_BAM);
     /* TODO: [p5-task4] Enable RXDMT0 Interrupt */
+    e1000_write_reg(e1000, E1000_IMS, E1000_IMS_RXDMT0);
+    local_flush_dcache();
 }
 
 /**
@@ -122,6 +139,8 @@ int e1000_transmit(void *txpacket, int length)
     local_flush_dcache();
     uint32_t tail = e1000_read_reg(e1000, E1000_TDT);
 
+    uint32_t tctl = e1000_read_reg(e1000, E1000_TCTL);
+
     // fill describer
     struct e1000_tx_desc *desc = &tx_desc_array[tail];
     if (!(desc->status & E1000_TXD_STAT_DD))
@@ -135,12 +154,11 @@ int e1000_transmit(void *txpacket, int length)
     desc->status = 0;   // dd=0: not finished  
 
     e1000_write_reg(e1000, E1000_TDT, (tail+1)%TXDESCS);
-    printl("Transmit data len %d, in tail 0x%x\n", length, tail);
     local_flush_dcache();
 
     uint32_t tdh = e1000_read_reg(e1000, E1000_TDH);
     uint32_t tdt = e1000_read_reg(e1000, E1000_TDT);
-    printl("TX Debug: Length=%d, TDT=%d, TDH=%d\n", length, tdt, tdh);
+    // printl("TX Debug: Length=%d, TDT=%d, TDH=%d\n", length, tdt, tdh);
     local_flush_dcache();
     return desc->length;
 }
@@ -150,9 +168,30 @@ int e1000_transmit(void *txpacket, int length)
  * @param rxbuffer - The address of buffer to store received packet
  * @return - Length of received packet
  **/
+static int rx_cur = 0;
 int e1000_poll(void *rxbuffer)
 {
     /* TODO: [p5-task2] Receive one packet and put it into rxbuffer */
+    local_flush_dcache();
+    struct e1000_rx_desc *desc = &rx_desc_array[rx_cur];
 
-    return 0;
+    uint32_t rctl = e1000_read_reg(e1000, E1000_RCTL);
+
+    if ((desc->status & E1000_RXD_STAT_DD) == 0)    // not recv pkg
+        return 0;
+
+    int len = desc->length;
+    if (len > 0)
+        memcpy(rxbuffer, rx_pkt_buffer[rx_cur], len);
+    desc->status = 0;
+    desc->length = 0;
+    
+    e1000_write_reg(e1000, E1000_RDT, rx_cur);
+    rx_cur = (rx_cur + 1) % RXDESCS;
+
+    uint32_t rdh = e1000_read_reg(e1000, E1000_RDH);
+    uint32_t rdt = e1000_read_reg(e1000, E1000_RDT);
+    // printl("RX: Length=%d, RDT=%d, RDH=%d\n", len, rdt, rdh);
+    local_flush_dcache();
+    return len;
 }

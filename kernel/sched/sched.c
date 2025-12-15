@@ -40,11 +40,7 @@ void do_scheduler(void)
 
     /************************************************************/
     // TODO: [p5-task3] Check send/recv queue to unblock PCBs
-    /************************************************************/
-
-
-    
-
+    /************************************************************/    
 //     // TODO: [p2-task1] Modify the current_running pointer.
     pcb_t* next_pcb = NULL;
     list_node_t* cur = ready_queue.prev;
@@ -246,13 +242,13 @@ void do_exit()
         do_unblock((list_node_t*)&(current_running[cpu_id]->wait_list));
     current_running[cpu_id]->lock_ptr = 0;
 
-    if(current_running[cpu_id]->pgdir != 0 && current_running[cpu_id]->is_thread == 0)
-    {
-        freePage(current_running[cpu_id]->kernel_stack_base - PAGE_SIZE);
-        recycle_page_table(current_running[cpu_id]->pgdir);
-        freePage(current_running[cpu_id]->pgdir);
-        current_running[cpu_id]->pgdir = 0;
-    }
+    // if(current_running[cpu_id]->pgdir != 0 && current_running[cpu_id]->is_thread == 0)
+    // {
+    //     freePage(current_running[cpu_id]->kernel_stack_base - PAGE_SIZE);
+    //     recycle_page_table(current_running[cpu_id]->pgdir);
+    //     freePage(current_running[cpu_id]->pgdir);
+    //     current_running[cpu_id]->pgdir = 0;
+    // }
 
     do_scheduler();
 }
@@ -289,13 +285,13 @@ int do_kill(pid_t pid)
         do_unblock((list_node_t*)&(pcb[i].wait_list));
         
     pcb[i].lock_ptr = 0;
-    if(pcb[i].pgdir != 0)
-    {
-        freePage(pcb[i].kernel_stack_base - PAGE_SIZE);
-        recycle_page_table(pcb[i].pgdir);
-        freePage(pcb[i].pgdir);
-        pcb[i].pgdir = 0;
-    }
+    // if(pcb[i].pgdir != 0)
+    // {
+    //     freePage(pcb[i].kernel_stack_base - PAGE_SIZE);
+    //     recycle_page_table(pcb[i].pgdir);
+    //     freePage(pcb[i].pgdir);
+    //     pcb[i].pgdir = 0;
+    // }
     return 1;
 }
 
