@@ -79,8 +79,12 @@ void handle_page_fault(regs_context_t *regs, uint64_t stval, uint64_t scause)
 void handle_irq_ext(regs_context_t *regs, uint64_t stval, uint64_t scause)
 {
     int32_t id = plic_claim();
+    printl("handle ext irq, id:%d\n", id);
     if (id == PLIC_E1000_PYNQ_IRQ || id == PLIC_E1000_QEMU_IRQ) 
+    {
+        printl("handle_net_irq\n");
         net_handle_irq();
+    }
     plic_complete(id);
 }
 

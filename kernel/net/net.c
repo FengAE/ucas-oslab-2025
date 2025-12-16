@@ -4,6 +4,7 @@
 #include <os/string.h>
 #include <os/list.h>
 #include <os/smp.h>
+#include <printk.h>
 
 static LIST_HEAD(send_block_queue);
 static LIST_HEAD(recv_block_queue);
@@ -36,10 +37,13 @@ int do_net_recv(void *rxbuffer, int pkt_num, int *pkt_lens)
     int recv_bytes = 0;
     for(int i=0; i<pkt_num; i++)
     {
+        printl("recv %d\n", i);
         pkt_lens[i] = e1000_poll(rxbuffer);
         if(pkt_lens[i] <= 0)
         {
+            printl("begin block recv\n");
             do_block(&(current_running[get_current_cpu_id()])->list, &recv_block_queue);
+            printl("get back recv\n");
             continue;
         }
         recv_bytes += pkt_lens[i];
@@ -72,6 +76,9 @@ void net_handle_irq(void)
         local_flush_dcache();
     }
 
-    if (icr & E1000_ICR_RXDMT0) 
+    if (icr & E1000_ICR_RXDMT0)
+    {
+        printl("get rxdmt0 interrupt\n");
         e1000_handle_rxdmt0();
+    }
 }

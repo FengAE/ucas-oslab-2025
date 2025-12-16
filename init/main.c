@@ -370,6 +370,9 @@ int main(void)
         bios_putstr("Hello OS!\n\r");
         bios_putstr(buf);
 
+        // Init Process Control Blocks |•'-'•) ✧
+        init_pcb();
+        printk("> [INIT] PCB initialization succeeded.\n");
 
         // Read Flatten Device Tree (｡•ᴗ-)_
         time_base = bios_read_fdt(TIMEBASE);
@@ -409,9 +412,6 @@ int main(void)
         // printk("> [MASTER] Core 0 Init Done. Releasing Kernel Lock.\n");
 
         init_pipes();
-
-        // Init Process Control Blocks |•'-'•) ✧
-        init_pcb();
 
         asm volatile(
 			"mv tp, %0"

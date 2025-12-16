@@ -173,9 +173,9 @@ void do_block(list_node_t *pcb_node, list_head *queue)
     switch_to(prev_running, next_pcb);
 }
 
-int do_unblock(list_node_t *node)
+int do_unblock(list_head *queue)
 {
-    list_node_t* cur = queue_popback(node);
+    list_node_t* cur = queue_popback(queue);
     if(!cur) return 0;
     pcb_t* prev_running = LIST_TO_PCB(cur);
     prev_running->status = TASK_READY;
