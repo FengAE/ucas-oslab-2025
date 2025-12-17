@@ -35,20 +35,25 @@ int do_net_recv(void *rxbuffer, int pkt_num, int *pkt_lens)
     // TODO: [p5-task2] Receive one network packet via e1000 device
     // TODO: [p5-task3] Call do_block when there is no packet on the way
     int recv_bytes = 0;
-    for(int i=0; i<pkt_num; i++)
+    int i=0;
+    while(i < pkt_num)
     {
         printl("recv %d\n", i);
-        pkt_lens[i] = e1000_poll(rxbuffer);
+        int len = e1000_poll(rxbuffer);
         if(pkt_lens[i] <= 0)
         {
             printl("begin block recv\n");
             do_block(&(current_running[get_current_cpu_id()])->list, &recv_block_queue);
             printl("get back recv\n");
-            continue;
         }
-        recv_bytes += pkt_lens[i];
-        rxbuffer += pkt_lens[i];
-    }
+        else
+        {
+            pkt_lens[i] = len;
+            recv_bytes += len;
+            rxbuffer += len;
+            i++;
+        }
+    }   
     return recv_bytes;  // Bytes it has received
 }
 
