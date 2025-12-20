@@ -40,7 +40,7 @@ int do_net_recv(void *rxbuffer, int pkt_num, int *pkt_lens)
     {
         printl("recv %d\n", i);
         int len = e1000_poll(rxbuffer);
-        if(pkt_lens[i] <= 0)
+        if(len <= 0)
         {
             printl("begin block recv\n");
             do_block(&(current_running[get_current_cpu_id()])->list, &recv_block_queue);

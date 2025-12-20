@@ -339,6 +339,7 @@ static void kernel_brake(void)
 int main(void)
 {
     int id = get_current_cpu_id();
+    asm volatile("csrc sip, %0" : : "r" (SIE_SSIE));
     if(id == 0)
     {
         init_locks();
@@ -369,43 +370,47 @@ int main(void)
         }
         bios_putstr("Hello OS!\n\r");
         bios_putstr(buf);
-
-        // Init Process Control Blocks |•'-'•) ✧
-        init_pcb();
-        printk("> [INIT] PCB initialization succeeded.\n");
-
+        
         // Read Flatten Device Tree (｡•ᴗ-)_
         time_base = bios_read_fdt(TIMEBASE);
         e1000 = (volatile uint8_t *)bios_read_fdt(ETHERNET_ADDR);
         uint64_t plic_addr = bios_read_fdt(PLIC_ADDR);
         uint32_t nr_irqs = (uint32_t)bios_read_fdt(NR_IRQS);
-        printk("> [INIT] e1000: %lx, plic_addr: %lx, nr_irqs: %lx.\n", e1000, plic_addr, nr_irqs);
+        // printk("> [INIT] e1000: %lx, plic_addr: %lx, nr_irqs: %lx.\n", e1000, plic_addr, nr_irqs);
 
         // IOremap
         plic_addr = (uintptr_t)ioremap((uint64_t)plic_addr, 0x4000 * NORMAL_PAGE_SIZE);
         e1000 = (uint8_t *)ioremap((uint64_t)e1000, 8 * NORMAL_PAGE_SIZE);
-        printk("> [INIT] IOremap initialization succeeded.\n");
-
+        // printk("> [INIT] IOremap initialization succeeded.\n");
+        // Init Process Control Blocks |•'-'•) ✧
+        init_pcb();
+        // printk("> [INIT] PCB initialization succeeded.\n");
 
         // Init lock mechanism o(´^｀)o
         init_locks();
-        printk("> [INIT] Lock mechanism initialization succeeded.\n");
+        // printk("> [INIT] Lock mechanism initialization succeeded.\n");
 
         // Init interrupt (^_^)
         init_exception();
-        printk("> [INIT] Interrupt processing initialization succeeded.\n");
+        // printk("> [INIT] Interrupt processing initialization succeeded.\n");
 
         // Init system call table (0_0)n
         init_syscall();
-        printk("> [INIT] System call initialized successfully.\n");
+        // printk("> [INIT] System call initialized successfully.\n");
 
         // TODO: [p5-task4] Init plic
         plic_init(plic_addr, nr_irqs);
-        printk("> [INIT] PLIC initialized successfully. addr = 0x%lx, nr_irqs=0x%x\n", plic_addr, nr_irqs);
+        // printk("> [INIT] PLIC initialized successfully. addr = 0x%lx, nr_irqs=0x%x\n", plic_addr, nr_irqs);
+
+        asm volatile(
+			"mv tp, %0"
+			:
+			: "r"(current_running[0]));
+        // plic_init_hart();
 
         // Init network device
         e1000_init();
-        printk("> [INIT] E1000 device initialized successfully.\n");
+        // printk("> [INIT] E1000 device initialized successfully.\n");
 
         // Init screen (QAQ)
         init_screen();   
@@ -413,10 +418,7 @@ int main(void)
 
         init_pipes();
 
-        asm volatile(
-			"mv tp, %0"
-			:
-			: "r"(current_running[0]));
+        
 
         unlock_kernel();
         wakeup_other_hart(NULL);
@@ -427,11 +429,14 @@ int main(void)
         lock_kernel();  
         init_jmptab();  // to use printk
         // printk("\n> [SLAVE] Core %d started!\n", id);
+        
         setup_exception();  
         asm volatile(
 			"mv tp, %0"
 			:
 			: "r"(current_running[1]));
+
+        // plic_init_hart();
         unlock_kernel();
     }
 

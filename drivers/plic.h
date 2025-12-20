@@ -50,5 +50,6 @@ extern int plic_init(uint64_t plic_regs_addr, uint32_t nr_irqs);
  */
 extern uint32_t plic_claim(void);
 extern void 	plic_complete(int hwirq);
+extern void plic_init_hart(void);
 
 #endif // !PLIC_H

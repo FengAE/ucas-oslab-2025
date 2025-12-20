@@ -18,8 +18,19 @@ void interrupt_helper(regs_context_t *regs, uint64_t stval, uint64_t scause)
 {
     // TODO: [p2-task3] & [p2-task4] interrupt handler.
     // call corresponding handler by the value of `scause`
+    int is_interrupt = (scause >> 63) & 1;
+    int cause_code   = scause & 0xff;
+
+    // print not time_irq
+    // if (!(is_interrupt && cause_code == IRQC_S_TIMER)) {
+    //     printl("sstatus: 0x%lx sbadaddr: 0x%lx scause: %lx\n\r",
+    //            regs->sstatus, regs->sbadaddr, regs->scause);
+    // }
+
     if((scause>>63) & 1)    // interrupt
+    {
         irq_table[scause & ~(1ULL<<63)](regs, stval, scause);
+    }
     else    // exception
         exc_table[scause](regs, stval, scause);
 }
@@ -78,11 +89,11 @@ void handle_page_fault(regs_context_t *regs, uint64_t stval, uint64_t scause)
 
 void handle_irq_ext(regs_context_t *regs, uint64_t stval, uint64_t scause)
 {
+    printl("begin irq_ext\n");
     int32_t id = plic_claim();
     printl("handle ext irq, id:%d\n", id);
     if (id == PLIC_E1000_PYNQ_IRQ || id == PLIC_E1000_QEMU_IRQ) 
     {
-        printl("handle_net_irq\n");
         net_handle_irq();
     }
     plic_complete(id);

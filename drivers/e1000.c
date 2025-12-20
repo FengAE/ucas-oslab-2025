@@ -24,6 +24,7 @@ static const uint8_t enetaddr[6] = {0x00, 0x0a, 0x35, 0x00, 0x1e, 0x53};
  **/
 static void e1000_reset(void)
 {
+    local_flush_dcache();
 	/* Turn off the ethernet interface */
     e1000_write_reg(e1000, E1000_RCTL, 0);
     e1000_write_reg(e1000, E1000_TCTL, 0);
@@ -47,6 +48,7 @@ static void e1000_reset(void)
 
     /* Clear any pending interrupt events. */
     while (0 != e1000_read_reg(e1000, E1000_ICR)) ;
+    local_flush_dcache();
 }
 
 /**
@@ -95,7 +97,6 @@ static void e1000_configure_rx(void)
     {
         memset(&rx_desc_array[i], 0, sizeof(struct e1000_rx_desc));
         rx_desc_array[i].addr = kva2pa((uintptr_t)rx_pkt_buffer[i]);
-        rx_desc_array[i].status = 0;
     }
     /* TODO: [p5-task2] Set up the Rx descriptor base address and length */
     uintptr_t rx_base = kva2pa((uintptr_t)rx_desc_array);
@@ -106,7 +107,7 @@ static void e1000_configure_rx(void)
     e1000_write_reg(e1000, E1000_RDH, 0);
     e1000_write_reg(e1000, E1000_RDT, RXDESCS - 1);
     /* TODO: [p5-task2] Program the Receive Control Register */
-    e1000_write_reg(e1000, E1000_RCTL, E1000_RCTL_EN | E1000_RCTL_BAM);
+    e1000_write_reg(e1000, E1000_RCTL, E1000_RCTL_EN | E1000_RCTL_BAM | E1000_RCTL_SZ_2048);
     /* TODO: [p5-task4] Enable RXDMT0 Interrupt */
     e1000_write_reg(e1000, E1000_IMS, E1000_IMS_RXDMT0);
     local_flush_dcache();
@@ -146,12 +147,12 @@ int e1000_transmit(void *txpacket, int length)
     if (!(desc->status & E1000_TXD_STAT_DD))
         return -1;   // ring full
     if (length <= 0)
-        return 0;
+        return -1;
 
     desc->length = length > TX_PKT_SIZE ? TX_PKT_SIZE : length;
-    memcpy(tx_pkt_buffer[tail], txpacket, desc->length);
+    memcpy((uint8_t*)tx_pkt_buffer[tail], txpacket, desc->length);
     desc->cmd = E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS; 
-    desc->status = 0;   // dd=0: not finished  
+    desc->status &= ~E1000_TXD_STAT_DD;   // dd=0: not finished  
 
     e1000_write_reg(e1000, E1000_TDT, (tail+1)%TXDESCS);
     local_flush_dcache();
@@ -181,13 +182,12 @@ int e1000_poll(void *rxbuffer)
         return 0;
 
     int len = desc->length;
-    if (len > 0)
-        memcpy(rxbuffer, rx_pkt_buffer[rx_cur], len);
-    desc->status = 0;
+    memcpy(rxbuffer, rx_pkt_buffer[rx_cur], len);
+    desc->status &= ~E1000_RXD_STAT_DD;
     desc->length = 0;
     
-    e1000_write_reg(e1000, E1000_RDT, rx_cur);
     rx_cur = (rx_cur + 1) % RXDESCS;
+    e1000_write_reg(e1000, E1000_RDT, rx_cur);    
 
     uint32_t rdh = e1000_read_reg(e1000, E1000_RDH);
     uint32_t rdt = e1000_read_reg(e1000, E1000_RDT);

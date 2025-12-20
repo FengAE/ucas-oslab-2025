@@ -27,6 +27,7 @@
 #define dmb()		mb()
 #define __iormb()	rmb()
 #define __iowmb()	wmb()
+#include<printk.h>
 
 static inline void writeb(unsigned char val, volatile void *addr)
 {
@@ -73,8 +74,13 @@ static inline unsigned short readw(const volatile void *addr)
 static inline unsigned int readl(const volatile void *addr)
 {
 	unsigned int	val;
-
-	val = __arch_getl(addr);
+	printl("addr:%x\n", addr);
+	uint64_t x;
+	asm volatile ("csrr %0, sstatus" : "=r"(x));
+	printl("sstatus: %lu\n", x);
+	val = __arch_getl(addr);	// spin here? addr=200004: Context0-M
+								// but os is S-mode!!
+	printl("3\n");
 	__iormb();
 	return val;
 }
