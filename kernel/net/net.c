@@ -38,10 +38,15 @@ int do_net_recv(void *rxbuffer, int pkt_num, int *pkt_lens)
     int i=0;
     while(i < pkt_num)
     {
-        printl("recv %d\n", i);
         int len = e1000_poll(rxbuffer);
         if(len <= 0)
         {
+            printl("recv %d: no data, blocking...\n", i);
+            local_flush_dcache();
+            uint32_t ims = e1000_read_reg(e1000, E1000_IMS);
+            e1000_write_reg(e1000, E1000_IMS, E1000_IMS_RXDMT0);
+            local_flush_dcache();
+            
             printl("begin block recv\n");
             do_block(&(current_running[get_current_cpu_id()])->list, &recv_block_queue);
             printl("get back recv\n");
@@ -52,6 +57,7 @@ int do_net_recv(void *rxbuffer, int pkt_num, int *pkt_lens)
             recv_bytes += len;
             rxbuffer += len;
             i++;
+            printl("recv %d success, len=%d\n", i-1, len);
         }
     }   
     return recv_bytes;  // Bytes it has received

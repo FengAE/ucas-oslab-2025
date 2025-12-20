@@ -74,13 +74,13 @@ static inline unsigned short readw(const volatile void *addr)
 static inline unsigned int readl(const volatile void *addr)
 {
 	unsigned int	val;
-	printl("addr:%x\n", addr);
-	uint64_t x;
-	asm volatile ("csrr %0, sstatus" : "=r"(x));
-	printl("sstatus: %lu\n", x);
+	// printl("addr:%x\n", addr);
+	// uint64_t x;
+	// asm volatile ("csrr %0, sstatus" : "=r"(x));
+	// printl("sstatus: %lu\n", x);
 	val = __arch_getl(addr);	// spin here? addr=200004: Context0-M
 								// but os is S-mode!!
-	printl("3\n");
+	// printl("3\n");
 	__iormb();
 	return val;
 }
