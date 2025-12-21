@@ -322,6 +322,7 @@ static void init_syscall(void)
     syscall[SYSCALL_PIPE_TAKE] = (long (*)())do_pipe_take_pages;
     syscall[SYSCALL_NET_SEND] = (long (*)())do_net_send;
     syscall[SYSCALL_NET_RECV] = (long (*)())do_net_recv;
+    syscall[SYSCALL_NET_RECV_STREAM] = (long (*)())do_net_recv_stream;
 }
 /************************************************************/
 

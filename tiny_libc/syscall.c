@@ -308,3 +308,8 @@ int sys_net_recv(void *rxbuffer, int pkt_num, int *pkt_lens)
     /* TODO: [p5-task2] call invoke_syscall to implement sys_net_recv */ 
     return invoke_syscall(SYSCALL_NET_RECV, (long)rxbuffer, pkt_num, (long)pkt_lens, IGNORE, IGNORE); 
 }
+
+int sys_net_recv_stream(void* buffer, int nbytes)
+{
+    return invoke_syscall(SYSCALL_NET_RECV_STREAM, (long)buffer, nbytes, IGNORE, IGNORE, IGNORE);
+}

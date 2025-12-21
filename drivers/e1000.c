@@ -191,7 +191,7 @@ int e1000_poll(void *rxbuffer)
 
     uint32_t rdh = e1000_read_reg(e1000, E1000_RDH);
     uint32_t rdt = e1000_read_reg(e1000, E1000_RDT);
-    // printl("RX: Length=%d, RDT=%d, RDH=%d\n", len, rdt, rdh);
+    printl("RX: Length=%d, RDT=%d, RDH=%d\n", len, rdt, rdh);
     local_flush_dcache();
     return len;
 }
