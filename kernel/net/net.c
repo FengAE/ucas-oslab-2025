@@ -7,6 +7,7 @@
 #include <os/net.h>
 #include <os/time.h>
 #include <os/mm.h>
+#include <csr.h>
 #include <printk.h>
 
 static LIST_HEAD(send_block_queue);
@@ -35,27 +36,45 @@ int do_net_send(void *txpacket, int length)
     return bytes_sent;  // Bytes it has transmitted
 }
 
+static inline void local_irq_save(uint64_t *flags) {
+    uint64_t sstatus;
+    asm volatile("csrr %0, sstatus" : "=r"(sstatus));
+    *flags = sstatus;
+    asm volatile("csrw sstatus, %0" :: "r"(sstatus & ~SR_SIE));
+}
+
+static inline void local_irq_restore(uint64_t flags) {
+    asm volatile("csrw sstatus, %0" :: "r"(flags));
+}
+
 int do_net_recv(void *rxbuffer, int pkt_num, int *pkt_lens)
 {
     int recv_bytes = 0;
     int i = 0;
+    uint64_t flags; // Store interrupt status
+
     while(i < pkt_num)
     {
         int len = e1000_poll(rxbuffer);
-        if (len > 0)
-            goto save_packet;
+        if (len > 0) goto save_packet;
 
-        // not recv, ready to block
+        // not recv: ready to block
         local_flush_dcache();
         e1000_write_reg(e1000, E1000_IMS, E1000_IMS_RXDMT0);
         local_flush_dcache();
 
-        // Double check
-        len = e1000_poll(rxbuffer);       
-        if (len > 0)
+        // Atomic operation: close SIE
+        local_irq_save(&flags);
+
+        // 4. Double Check
+        len = e1000_poll(rxbuffer);
+        if (len > 0) {
+            local_irq_restore(flags); // Restore SIE
             goto save_packet;
+        }
         printl("recv %d: blocking...\n", i);
         do_block(&(current_running[get_current_cpu_id()])->list, &recv_block_queue);
+        local_irq_restore(flags);
         continue;
 
 save_packet:
@@ -67,7 +86,6 @@ save_packet:
     }   
     return recv_bytes;
 }
-
 
 // ======================= Recv Stream =======================
 char *stream_buffer = NULL;
