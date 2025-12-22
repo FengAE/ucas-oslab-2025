@@ -6,6 +6,7 @@
 #include <os/smp.h>
 #include <os/net.h>
 #include <os/time.h>
+#include <os/mm.h>
 #include <printk.h>
 
 static LIST_HEAD(send_block_queue);
@@ -42,7 +43,9 @@ int do_net_recv(void *rxbuffer, int pkt_num, int *pkt_lens)
     int i=0;
     while(i < pkt_num)
     {
+        printl("begin poll\n");
         int len = e1000_poll(rxbuffer);
+        printl("len: %d\n", len);
         if(len <= 0)
         {
             printl("recv %d: no data, blocking...\n", i);
@@ -69,16 +72,27 @@ int do_net_recv(void *rxbuffer, int pkt_num, int *pkt_lens)
 
 
 // ======================= Recv Stream =======================
-char stream_buffer[STREAM_BUF_SIZE];
-static char poll_buffer[POLL_BUF_SIZE];
-static uint8_t stream_received[STREAM_BUF_SIZE] = {0};
-static int current_seq = 0;
-static int seen_seq = 0;
-static uint64_t last_rsd_time = 0;
+char *stream_buffer = NULL;
+uint8_t *stream_received = NULL;
+char *poll_buffer;
+int current_seq = 0;
+int seen_seq = 0;
+uint64_t last_rsd_time = 0;
+uint8_t header_cache[54]; 
+int has_valid_header = 0;
 
-static uint8_t header_cache[54]; 
-static int has_valid_header = 0;
-static uint16_t ip_checksum(void *vdata, size_t length) {
+void net_init_buffers() 
+{
+    if (stream_buffer == NULL) 
+    {
+        stream_buffer = (char *)allocPage(STREAM_BUF_SIZE / PAGE_SIZE); 
+        stream_received = (uint8_t *)allocPage(STREAM_BUF_SIZE / PAGE_SIZE);
+        poll_buffer = (char*)allocPage(POLL_BUF_SIZE / PAGE_SIZE);
+        memset(stream_received, 0, STREAM_BUF_SIZE);
+    }
+}
+
+uint16_t ip_checksum(void *vdata, size_t length) {
     char *data = (char *)vdata;
     uint32_t acc = 0xffff;
     for (size_t i = 0; i + 1 < length; i += 2) {
@@ -104,48 +118,27 @@ void send_control_packet(uint8_t flag, uint32_t seq)
 {
     if (!has_valid_header) return;
 
-    char packet[100]; // 足够容纳头部
-    
-    // 1. 拷贝原始头部
+    char packet[100]; 
     memcpy(packet, header_cache, 54);
-
-    // ================= [修复 1: 恢复地址交换] =================
-    // 交换 MAC 地址 (Eth Header)
     memcpy(packet, header_cache + 6, 6);       // Dst(0-5) = Old Src
     memcpy(packet + 6, header_cache, 6);       // Src(6-11) = Old Dst
-    
-    // 交换 IP 地址 (IP Header, 偏移 26 和 30)
     memcpy(packet + 26, header_cache + 30, 4); // IP Src = Old IP Dst
     memcpy(packet + 30, header_cache + 26, 4); // IP Dst = Old IP Src
-    
-    // 交换 TCP 端口 (TCP Header, 偏移 34 和 36)
     memcpy(packet + 34, header_cache + 36, 2); // Port Src = Old Port Dst
     memcpy(packet + 36, header_cache + 34, 2); // Port Dst = Old Port Src
-    // ==========================================================
-
-    // ================= [修复 2: 修正长度与校验和] =================
-    // 设置 IP Total Length (偏移 16) = IP头(20) + TCP头(20) + 自定义头(8) = 48
     uint16_t ip_total_len = 20 + 20 + sizeof(stream_header_t);
     *(uint16_t *)(packet + 16) = htons(ip_total_len);
-
-    // 计算 IP Header Checksum (偏移 24 处先置0，然后计算)
     *(uint16_t *)(packet + 24) = 0; 
-    // 计算从 packet+14 开始的 20 字节 IP 头的校验和
     uint16_t checksum = ip_checksum(packet + 14, 20);
     *(uint16_t *)(packet + 24) = checksum;
-    
-    // 尝试将 TCP 校验和置 0 (防止因校验错误被丢弃，许多环境允许这样)
     *(uint16_t *)(packet + 50) = 0; 
-    // ==========================================================
 
-    // 填充自定义协议头
     stream_header_t *header = (stream_header_t *)(packet + 54);
     header->magic = MAGIC_NUM;
     header->flags = flag;
     header->length = htons(0); 
     header->seq = htonl(seq);
 
-    // 发送
     do_net_send(packet, 54 + sizeof(stream_header_t));
 }
 
@@ -255,7 +248,7 @@ void net_handle_irq(void)
         local_flush_dcache();
     }
 
-    if (icr & E1000_ICR_RXDMT0)
+    if (icr & (E1000_ICR_RXDMT0|E1000_ICR_RXT0))
     {
         printl("get rxdmt0 interrupt\n");
         e1000_handle_rxdmt0();

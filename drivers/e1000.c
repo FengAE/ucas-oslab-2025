@@ -2,6 +2,7 @@
 #include <type.h>
 #include <os/string.h>
 #include <os/time.h>
+#include <os/net.h>
 #include <assert.h>
 #include <pgtable.h>
 
@@ -126,6 +127,8 @@ void e1000_init(void)
 
     /* Configure E1000 Rx Unit */
     e1000_configure_rx();
+
+    net_init_buffers();
 }
 
 /**
@@ -177,21 +180,26 @@ int e1000_poll(void *rxbuffer)
     struct e1000_rx_desc *desc = &rx_desc_array[rx_cur];
 
     uint32_t rctl = e1000_read_reg(e1000, E1000_RCTL);
-
+    printl("1\n");
     if ((desc->status & E1000_RXD_STAT_DD) == 0)    // not recv pkg
         return 0;
 
     int len = desc->length;
-    memcpy(rxbuffer, rx_pkt_buffer[rx_cur], len);
+    uint8_t *src = (uint8_t *)rx_pkt_buffer[rx_cur];
+    uint8_t *dst = (uint8_t *)rxbuffer;
+    for (int k = 0; k < len; k++) {
+        dst[k] = src[k];
+    }
     desc->status &= ~E1000_RXD_STAT_DD;
     desc->length = 0;
     
     rx_cur = (rx_cur + 1) % RXDESCS;
-    e1000_write_reg(e1000, E1000_RDT, rx_cur);    
-
+    e1000_write_reg(e1000, E1000_RDT, rx_cur);   
+    printl("3\n"); 
+    local_flush_dcache();
     uint32_t rdh = e1000_read_reg(e1000, E1000_RDH);
     uint32_t rdt = e1000_read_reg(e1000, E1000_RDT);
-    printl("RX: Length=%d, RDT=%d, RDH=%d\n", len, rdt, rdh);
+    // printl("RX: Length=%d, RDT=%d, RDH=%d\n", len, rdt, rdh);
     local_flush_dcache();
     return len;
 }

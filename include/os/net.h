@@ -23,6 +23,7 @@ void e1000_handle_txqe();
 void e1000_handle_rxdmt0();
 
 // [p5-task4] recv_stream
+extern void net_init_buffers();
 #pragma pack(push, 1)
 typedef struct {
     uint8_t magic;      // 0x45
@@ -44,7 +45,7 @@ typedef struct {
                   (((x) >> 8) & 0xFF00) | (((x) >> 24) & 0xFF))
 #define htonl(x) ntohl(x)
 
-#define STREAM_BUF_SIZE (1024 * 4096)
+#define STREAM_BUF_SIZE (64 * 4096)
 #define POLL_BUF_SIZE 4096
 
 #endif  // __INCLUDE_NET_H__
