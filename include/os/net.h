@@ -34,7 +34,7 @@ typedef struct {
 #pragma pack(pop)
 
 #define MAGIC_NUM 0x45
-#define FLAG_ACK 0
+#define FLAG_ACK 4
 #define FLAG_DAT 1
 #define FLAG_RSD 2
 

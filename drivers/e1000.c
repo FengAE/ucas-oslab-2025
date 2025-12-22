@@ -193,8 +193,9 @@ int e1000_poll(void *rxbuffer)
     desc->status &= ~E1000_RXD_STAT_DD;
     desc->length = 0;
     
+    int old_cur = rx_cur;
     rx_cur = (rx_cur + 1) % RXDESCS;
-    e1000_write_reg(e1000, E1000_RDT, rx_cur);   
+    e1000_write_reg(e1000, E1000_RDT, old_cur);   
     printl("3\n"); 
     local_flush_dcache();
     uint32_t rdh = e1000_read_reg(e1000, E1000_RDH);

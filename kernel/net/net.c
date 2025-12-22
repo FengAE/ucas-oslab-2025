@@ -88,14 +88,17 @@ save_packet:
 }
 
 // ======================= Recv Stream =======================
-char *stream_buffer = NULL;
-uint8_t *stream_received = NULL;
-char *poll_buffer;
-int current_seq = 0;
-int seen_seq = 0;
-uint64_t last_rsd_time = 0;
+char *stream_buffer = NULL;      
+uint8_t *stream_received = NULL; 
+int current_seq = 0;             
+int highest_seq = 0;             
+uint64_t last_progress_time = 0; 
+uint64_t last_rsd_time = 0;      
+uint64_t rsd_timeout = 0;        
+
 uint8_t header_cache[54]; 
 int has_valid_header = 0;
+char *poll_buffer = NULL;
 
 void net_init_buffers() 
 {
@@ -158,84 +161,117 @@ void send_control_packet(uint8_t flag, uint32_t seq)
     do_net_send(packet, 54 + sizeof(stream_header_t));
 }
 
+void stream_try_advance() 
+{   // check if current_seq if full, if is: move forward
+    int progressed = 0;
+    while (current_seq < STREAM_BUF_SIZE && stream_received[current_seq]) {
+        int step = 1;
+        while(current_seq + step < STREAM_BUF_SIZE && stream_received[current_seq + step]) {
+            step++;
+        }
+        current_seq += step;
+        progressed = 1;
+    }
+
+    if (progressed) 
+    {
+        last_progress_time = get_ticks();
+        send_control_packet(FLAG_ACK, current_seq);
+    }
+}
+
+void stream_handle_packet(char *pkt_buffer) 
+{
+    stream_header_t *hdr = (stream_header_t*)(pkt_buffer + 54);
+    if(hdr->magic != MAGIC_NUM || hdr->flags != FLAG_DAT) return;
+    // Store header
+    if (!has_valid_header) 
+    {
+        memcpy(header_cache, pkt_buffer, 54);
+        has_valid_header = 1;
+        last_progress_time = get_ticks(); // first receive pkg
+    }
+    uint16_t data_len = ntohs(hdr->length);
+    uint32_t seq = ntohl(hdr->seq);
+    if (seq + data_len > highest_seq) highest_seq = seq + data_len;
+
+    // 1. receive old pkg
+    if (seq < current_seq) 
+    {
+        send_control_packet(FLAG_ACK, current_seq);
+        return;
+    }
+
+    // 2. receive future or cur pkg
+    if (seq + data_len < STREAM_BUF_SIZE) 
+    {
+        if (stream_received[seq] == 0) 
+        {
+            memcpy(&stream_buffer[seq], (uint8_t*)hdr + sizeof(stream_header_t), data_len);
+            memset(&stream_received[seq], 1, data_len);
+        }
+        if (seq == current_seq) {
+            stream_try_advance();
+        }
+    }
+}
+
+void stream_check_timeout() 
+{   // check if send RSD
+    if (!has_valid_header) return;
+    if (current_seq >= highest_seq) return;
+
+    uint64_t now = get_ticks();
+    if (now - last_progress_time > rsd_timeout && 
+        now - last_rsd_time > rsd_timeout) 
+    {
+        printl("Timeout! Gap detected at %d, Highest %d. Sending RSD.\n", current_seq, highest_seq);
+        send_control_packet(FLAG_RSD, current_seq);
+        last_rsd_time = now;
+    }
+}
+
 int do_net_recv_stream(void* buffer, int nbytes)
 {
-    if (last_rsd_time == 0) last_rsd_time = get_timer();
+    uint64_t flags; 
     while(1)
     {
-        while(1)
+        while (1) 
         {
             int len = e1000_poll(poll_buffer);
-            printl("poll length: %d\n", len);
-            if(len<=0)  break;
-            stream_header_t *hdr = (stream_header_t*)(poll_buffer+54);  // 54 (Ethernet 14 + IP 20 + TCP 20)
-            
-            // printl("HEX: ");
-            // for (int i = 0; i < 16; i++) {
-            //         printl("%02x ", ((uint8_t *)hdr)[i]);
-            // }
-            // printl("\n");
-
-            // printl("magic: %x, flags: %x\n", hdr->magic, hdr->flags);
-            if((hdr->magic!=MAGIC_NUM) ||(hdr->flags!=FLAG_DAT))    continue;
-            memcpy(header_cache, poll_buffer, 54);
-            has_valid_header = 1;
-
-            uint16_t data_len = ntohs(hdr->length);
-            uint32_t seq = ntohl(hdr->seq);
-            printl("seq: %d, data_len: %d\n", seq, data_len);
-            if (seq + data_len >= STREAM_BUF_SIZE)
-            {
-                printl("Warning: Stream buffer overflow!\n");
-                continue; 
-            }
-
-            // Store kernel buffer
-            if(seq >= current_seq)
-            {
-                printl("begin fill kernel buffer, len: %d\n", data_len);
-                memcpy(&stream_buffer[seq], (uint8_t*)hdr+sizeof(stream_header_t), data_len);
-                memset(&stream_received[seq], 1, data_len);
-                if(seq + data_len > seen_seq)   seen_seq = seq+data_len;
-            }
-            else    // maybe not recieve previous ack?
-                send_control_packet(FLAG_ACK, current_seq);
+            if (len <= 0) break;
+            stream_handle_packet(poll_buffer);
         }
-        // check if have continous data to provide to user
-        int copy_len = 0;
-        while(current_seq + copy_len < STREAM_BUF_SIZE 
-            && stream_received[current_seq + copy_len] == 1) 
+        
+        static int user_copied_seq = 0;
+        
+        int available = current_seq - user_copied_seq;
+        if (available > 0) 
         {
-            copy_len++;
-            if (copy_len >= nbytes) break;
-        }
-
-        if(copy_len > 0)
-        {
-            printl("Continous data, begin: %d, end: %d\n", current_seq, current_seq+copy_len);
-            memcpy(buffer, &stream_buffer[current_seq], copy_len);
-            current_seq += copy_len;
-            send_control_packet(FLAG_ACK, current_seq);
-            printl("Copy end, return to user\n");
+            int copy_len = (available > nbytes) ? nbytes : available;
+            memcpy(buffer, &stream_buffer[user_copied_seq], copy_len);
+            user_copied_seq += copy_len;
             return copy_len;
         }
-        // no continuous data: deal RSD, and block
-        uint64_t now = get_timer();
 
-        if (now - last_rsd_time > 0) 
+        stream_check_timeout();
+        local_flush_dcache();
+        e1000_write_reg(e1000, E1000_IMS, E1000_IMS_RXDMT0);
+        local_flush_dcache();
+
+        local_irq_save(&flags);
+        
+        // Double Check
+        int len = e1000_poll(poll_buffer);
+        if (len > 0) 
         {
-            printl("Timeout! Ask for %d\n", current_seq);
-            send_control_packet(FLAG_RSD, current_seq);
-            last_rsd_time = now;
+            local_irq_restore(flags);
+            stream_handle_packet(poll_buffer);
+            continue;
         }
-
-        local_flush_dcache();
-        uint32_t ims = e1000_read_reg(e1000, E1000_IMS);
-        e1000_write_reg(e1000, E1000_IMS, ims | E1000_IMS_RXDMT0 | E1000_IMS_RXT0);
-        local_flush_dcache();
-
         printl("Stream blocking: wait seq %d\n", current_seq);
         do_block(&(current_running[get_current_cpu_id()])->list, &recv_block_queue);
+        local_irq_restore(flags);
     }
 }
 
