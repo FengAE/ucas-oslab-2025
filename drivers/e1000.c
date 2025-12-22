@@ -110,7 +110,7 @@ static void e1000_configure_rx(void)
     /* TODO: [p5-task2] Program the Receive Control Register */
     e1000_write_reg(e1000, E1000_RCTL, E1000_RCTL_EN | E1000_RCTL_BAM | E1000_RCTL_SZ_2048);
     /* TODO: [p5-task4] Enable RXDMT0 Interrupt */
-    e1000_write_reg(e1000, E1000_IMS, E1000_IMS_RXDMT0);
+    e1000_write_reg(e1000, E1000_IMS, E1000_IMS_RXDMT0 | E1000_IMS_RXT0);
     local_flush_dcache();
 }
 

@@ -37,37 +37,35 @@ int do_net_send(void *txpacket, int length)
 
 int do_net_recv(void *rxbuffer, int pkt_num, int *pkt_lens)
 {
-    // TODO: [p5-task2] Receive one network packet via e1000 device
-    // TODO: [p5-task3] Call do_block when there is no packet on the way
     int recv_bytes = 0;
-    int i=0;
+    int i = 0;
     while(i < pkt_num)
     {
-        printl("begin poll\n");
         int len = e1000_poll(rxbuffer);
-        printl("len: %d\n", len);
-        if(len <= 0)
-        {
-            printl("recv %d: no data, blocking...\n", i);
-            local_flush_dcache();
-            uint32_t ims = e1000_read_reg(e1000, E1000_IMS);
-            e1000_write_reg(e1000, E1000_IMS, E1000_IMS_RXDMT0);
-            local_flush_dcache();
-            
-            printl("begin block recv\n");
-            do_block(&(current_running[get_current_cpu_id()])->list, &recv_block_queue);
-            printl("get back recv\n");
-        }
-        else
-        {
-            pkt_lens[i] = len;
-            recv_bytes += len;
-            rxbuffer += len;
-            i++;
-            printl("recv %d success, len=%d\n", i-1, len);
-        }
+        if (len > 0)
+            goto save_packet;
+
+        // not recv, ready to block
+        local_flush_dcache();
+        e1000_write_reg(e1000, E1000_IMS, E1000_IMS_RXDMT0);
+        local_flush_dcache();
+
+        // Double check
+        len = e1000_poll(rxbuffer);       
+        if (len > 0)
+            goto save_packet;
+        printl("recv %d: blocking...\n", i);
+        do_block(&(current_running[get_current_cpu_id()])->list, &recv_block_queue);
+        continue;
+
+save_packet:
+        pkt_lens[i] = len;
+        recv_bytes += len;
+        rxbuffer += len;
+        i++;
+        printl("recv %d success, len=%d\n", i-1, len);
     }   
-    return recv_bytes;  // Bytes it has received
+    return recv_bytes;
 }
 
 
@@ -215,7 +213,7 @@ int do_net_recv_stream(void* buffer, int nbytes)
 
         local_flush_dcache();
         uint32_t ims = e1000_read_reg(e1000, E1000_IMS);
-        e1000_write_reg(e1000, E1000_IMS, ims | E1000_IMS_RXDMT0);
+        e1000_write_reg(e1000, E1000_IMS, ims | E1000_IMS_RXDMT0 | E1000_IMS_RXT0);
         local_flush_dcache();
 
         printl("Stream blocking: wait seq %d\n", current_seq);
