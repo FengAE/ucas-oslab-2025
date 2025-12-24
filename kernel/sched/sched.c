@@ -6,6 +6,7 @@
 #include <os/loader.h>
 #include <os/string.h>
 #include <os/mm.h>
+#include <csr.h>
 #include <screen.h>
 #include <printk.h>
 #include <assert.h>
@@ -28,6 +29,17 @@ static const char* status_str[] = {
     [TASK_READY]   = "READY",
     [TASK_EXITED]  = "EXITED"
 };
+
+static inline void local_irq_save(uint64_t *flags) {
+    uint64_t sstatus;
+    asm volatile("csrr %0, sstatus" : "=r"(sstatus));
+    *flags = sstatus;
+    asm volatile("csrw sstatus, %0" :: "r"(sstatus & ~SR_SIE));
+}
+
+static inline void local_irq_restore(uint64_t flags) {
+    asm volatile("csrw sstatus, %0" :: "r"(flags));
+}
 
 void do_scheduler(void)
 {
@@ -134,22 +146,32 @@ void check_sleeping()
 
 void do_sleep(uint32_t sleep_time)
 {
-    if(ready_queue.next == &ready_queue) return;
+    uint64_t flags;
+    local_irq_save(&flags);
+
     int cpu_id = get_current_cpu_id();
+    pcb_t* current = current_running[cpu_id];
+    current->wakeup_time = get_timer() + sleep_time;
+    current->status = TASK_BLOCKED;
 
-    pcb_t* next_pcb = LIST_TO_PCB(queue_popback(&ready_queue));
-    pcb_t* prev_running = current_running[cpu_id];
-    uint64_t current_time = get_timer();
+    queue_pushfront(&current->list, &sleep_queue);
+    list_node_t* next_node = queue_popback(&ready_queue);
+    pcb_t* next_pcb;
 
-    prev_running->wakeup_time = current_time + (uint64_t)sleep_time;
-    queue_pushfront(&(current_running[cpu_id]->list), &sleep_queue);
-    current_running[cpu_id]->status = TASK_BLOCKED;
-    current_running[cpu_id] = next_pcb;
+    if (next_node)
+        next_pcb = LIST_TO_PCB(next_node);
+    else 
+        next_pcb = &pid0_pcb[cpu_id];
     next_pcb->status = TASK_RUNNING;
+    current_running[cpu_id] = next_pcb;
+    if (current != next_pcb) 
+    {
+        set_satp(SATP_MODE_SV39, next_pcb->pid, kva2pa(next_pcb->pgdir) >> NORMAL_PAGE_SHIFT);
+        local_flush_tlb_all();
+        switch_to(current, next_pcb);
+    }
 
-    set_satp(SATP_MODE_SV39, next_pcb->pid, kva2pa(next_pcb->pgdir) >> NORMAL_PAGE_SHIFT);
-    local_flush_tlb_all();
-    switch_to(prev_running, next_pcb);
+    local_irq_restore(flags);
 }
 
 

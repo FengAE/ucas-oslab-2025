@@ -272,6 +272,7 @@ int do_net_recv_stream(void* buffer, int nbytes)
         printl("Stream blocking: wait seq %d\n", current_seq);
         do_block(&(current_running[get_current_cpu_id()])->list, &recv_block_queue);
         local_irq_restore(flags);
+        // do_sleep(2);    // use time check, since PYNQ not support RXT0
     }
 }
 
@@ -293,6 +294,7 @@ void net_handle_irq(void)
     // TODO: [p5-task4] Handle interrupts from network device
     local_flush_dcache();
     uint32_t icr = e1000_read_reg(e1000, E1000_ICR);
+    printl("icr: %x\n", icr);
     if (icr & E1000_ICR_TXQE) 
     {
         e1000_handle_txqe();
@@ -300,6 +302,8 @@ void net_handle_irq(void)
         local_flush_dcache();
     }
 
+    printl("icr & (E1000_ICR_RXDMT0): %d\n", icr & (E1000_ICR_RXDMT0));
+    printl("icr & (E1000_ICR_RXT0): %d\n", icr & (E1000_ICR_RXT0));
     if (icr & (E1000_ICR_RXDMT0|E1000_ICR_RXT0))
     {
         printl("get rxdmt0 interrupt\n");
