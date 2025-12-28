@@ -2,22 +2,50 @@
 #define __INCLUDE_OS_FS_H__
 
 #include <type.h>
+#include <os/mm.h>
+#include <os/task.h>
 
 /* macros of file system */
 #define SUPERBLOCK_MAGIC 0xDF4C4459
 #define NUM_FDESCS 16
 
+
+#define BLOCK_SIZE  4096
+#define SEC_PER_BLOCK BLOCK_SIZE/SECTOR_SIZE
+#define IM_DIR  0 
+#define IM_FILE 1
+#define MAGIC_NUM 0x66666666
+#define FS_START_SECTOR 1048576
+
 /* data structures of file system */
-typedef struct superblock {
+typedef struct superblock { // Describe whole file system
     // TODO [P6-task1]: Implement the data structure of superblock
+    uint32_t magic;           
+    uint32_t num_sector;         
+    uint32_t start_sector;    
+    
+    uint32_t inode_map_offset; 
+    uint32_t inode_map_sz;      
+    uint32_t block_map_offset; 
+    uint32_t block_map_sz;     
+    uint32_t inode_offset;     
+    uint32_t inode_sz;         
+    uint32_t data_offset;      
+    uint32_t data_sz;          
 } superblock_t;
 
-typedef struct dentry {
+typedef struct dentry { // Describe name -> inode
     // TODO [P6-task1]: Implement the data structure of directory entry
+    uint32_t inode_id;
+    char name[32];
 } dentry_t;
 
-typedef struct inode { 
+typedef struct inode {  // Describe specific file
     // TODO [P6-task1]: Implement the data structure of inode
+    uint16_t mode;          // IM_DIR or IM_FILE
+    uint16_t link_count;    // hard link num
+    uint32_t indirect_block;
+    uint64_t size;
 } inode_t;
 
 typedef struct fdesc {

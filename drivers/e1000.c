@@ -143,8 +143,6 @@ int e1000_transmit(void *txpacket, int length)
     local_flush_dcache();
     uint32_t tail = e1000_read_reg(e1000, E1000_TDT);
 
-    uint32_t tctl = e1000_read_reg(e1000, E1000_TCTL);
-
     // fill describer
     struct e1000_tx_desc *desc = &tx_desc_array[tail];
     if (!(desc->status & E1000_TXD_STAT_DD))
@@ -160,8 +158,8 @@ int e1000_transmit(void *txpacket, int length)
     e1000_write_reg(e1000, E1000_TDT, (tail+1)%TXDESCS);
     local_flush_dcache();
 
-    uint32_t tdh = e1000_read_reg(e1000, E1000_TDH);
-    uint32_t tdt = e1000_read_reg(e1000, E1000_TDT);
+    // uint32_t tdh = e1000_read_reg(e1000, E1000_TDH);
+    // uint32_t tdt = e1000_read_reg(e1000, E1000_TDT);
     // printl("TX Debug: Length=%d, TDT=%d, TDH=%d\n", length, tdt, tdh);
     local_flush_dcache();
     return desc->length;

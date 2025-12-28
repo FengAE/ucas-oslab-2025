@@ -13,6 +13,7 @@
 #include <os/time.h>
 #include <os/ioremap.h>
 #include <os/net.h>
+#include <os/fs.h>
 #include <sys/syscall.h>
 #include <screen.h>
 #include <plic.h>
@@ -300,29 +301,54 @@ static void init_syscall(void)
     syscall[SYSCALL_GETPID] = (long (*)())do_getpid;
     syscall[SYSCALL_CLEAR] = (long (*)())screen_clear;
     syscall[SYSCALL_READCH] = (long (*)())port_read_ch;
+
     syscall[SYSCALL_BARR_INIT] = (long (*)())do_barrier_init;
     syscall[SYSCALL_BARR_WAIT] = (long (*)())do_barrier_wait;
     syscall[SYSCALL_BARR_DESTROY] = (long (*)())do_barrier_destroy;
+
     syscall[SYSCALL_COND_INIT] = (long (*)())do_condition_init;
     syscall[SYSCALL_COND_WAIT] = (long (*)())do_condition_wait;
     syscall[SYSCALL_COND_SIGNAL] = (long (*)())do_condition_signal;
     syscall[SYSCALL_COND_BROADCAST] = (long (*)())do_condition_broadcast;
     syscall[SYSCALL_COND_DESTROY] = (long (*)())do_condition_destroy;
+
     syscall[SYSCALL_MBOX_OPEN] = (long (*)())do_mbox_open;
     syscall[SYSCALL_MBOX_CLOSE] = (long (*)())do_mbox_close;
     syscall[SYSCALL_MBOX_SEND] = (long (*)())do_mbox_send;
     syscall[SYSCALL_MBOX_RECV] = (long (*)())do_mbox_recv;
+
     syscall[SYSCALL_TASKSET] = (long (*)())do_taskset;
+    
     syscall[SYSCALL_THREAD_CREATE] = (long (*)())do_thread_create;
     syscall[SYSCALL_THREAD_EXIT] = (long (*)())do_thread_exit;
     syscall[SYSCALL_THREAD_JOIN] = (long (*)())do_thread_join;
+
     syscall[SYSCALL_GET_MEMORY] = (long (*)())get_free_memory;
+
     syscall[SYSCALL_PIPE_OPEN] = (long (*)())do_pipe_open;
     syscall[SYSCALL_PIPE_GIVE] = (long (*)())do_pipe_give_pages;
     syscall[SYSCALL_PIPE_TAKE] = (long (*)())do_pipe_take_pages;
+
     syscall[SYSCALL_NET_SEND] = (long (*)())do_net_send;
     syscall[SYSCALL_NET_RECV] = (long (*)())do_net_recv;
     syscall[SYSCALL_NET_RECV_STREAM] = (long (*)())do_net_recv_stream;
+    
+    /* ---------- File system syscalls ---------- */
+    syscall[SYSCALL_FS_MKFS]   = (long (*)())do_mkfs;
+    syscall[SYSCALL_FS_STATFS] = (long (*)())do_statfs;
+    syscall[SYSCALL_FS_CD]     = (long (*)())do_cd;
+    syscall[SYSCALL_FS_MKDIR]  = (long (*)())do_mkdir;
+    syscall[SYSCALL_FS_RMDIR]  = (long (*)())do_rmdir;
+    syscall[SYSCALL_FS_LS]     = (long (*)())do_ls;
+    syscall[SYSCALL_FS_TOUCH]  = (long (*)())do_open;   // touch --> open
+    syscall[SYSCALL_FS_CAT]    = (long (*)())do_read;   // cat --> read
+    syscall[SYSCALL_FS_OPEN]   = (long (*)())do_open;
+    syscall[SYSCALL_FS_READ]   = (long (*)())do_read;
+    syscall[SYSCALL_FS_WRITE]  = (long (*)())do_write;
+    syscall[SYSCALL_FS_CLOSE]  = (long (*)())do_close;
+    syscall[SYSCALL_FS_LN]     = (long (*)())do_ln;
+    syscall[SYSCALL_FS_RM]     = (long (*)())do_rm;
+    syscall[SYSCALL_FS_LSEEK]  = (long (*)())do_lseek;
 }
 /************************************************************/
 

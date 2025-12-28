@@ -209,8 +209,7 @@ int main(void)
             }
             buffer[buf_ptr++] = ch;
             printf("%c", ch);
-        }      
-        // TODO [P3-task1]: ps, exec, kill, clear    
+        }        
 
         /************************************************************/
         // TODO [P6-task1]: mkfs, statfs, cd, mkdir, rmdir, ls
