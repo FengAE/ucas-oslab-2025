@@ -41,6 +41,7 @@ int buf_ptr = 0;
 char* prev_pcb;
 int prev_mem;
 long begin=0, end=0;
+char cur_path[BUFFER_SIZE];
 void Backspace()
 {
     if(buf_ptr > 0)
@@ -56,7 +57,8 @@ int main(void)
     sys_move_cursor(0, SHELL_BEGIN);
     printf("------------------- COMMAND -------------------\n");
     sys_move_cursor(0, SHELL_BEGIN+1);
-    printf("> root@UCAS_OS: ");
+    strcpy(cur_path, "~");
+    printf("> root@UCAS_OS: %s$ ", cur_path);
 
     int ch;
     while (1)
@@ -193,11 +195,87 @@ int main(void)
                             }
                         }
                     }
+                    // ================== file system ===================
+                    else if(strcmp(argv[0], "mkfs")==0 && argc==1)
+                        sys_mkfs();
+                    else if(strcmp(argv[0], "statfs")==0 && argc==1)
+                        sys_statfs();
+                    else if(strcmp(argv[0], "mkdir")==0 && argc==2)
+                    {
+                        int len = strlen(argv[1]);
+                        if(argv[1][len-1] == '/')   argv[1][len-1] = '\0';
+                        sys_mkdir(argv[1]);
+                    }
+                    else if(strcmp(argv[0], "rmdir")==0 && argc==2)
+                    {
+                        int len = strlen(argv[1]);
+                        if(argv[1][len-1] == '/')   argv[1][len-1] = '\0';
+                        sys_rmdir(argv[1]);
+                    }
+                    else if(strcmp(argv[0], "ll")==0)
+                    {
+                        if(argc==1) sys_ls(NULL, 1);
+                        else if(argc==2)    
+                        {
+                            int len = strlen(argv[1]);
+                            if(argv[1][len-1] == '/')   argv[1][len-1] = '\0';
+                            sys_ls(argv[1], 1);
+                        }
+                    }
+                    else if(strcmp(argv[0], "ls")==0)
+                    {
+                        if(argc==1) sys_ls(NULL, 0);
+                        else if(argc==2)
+                        {
+                            int len = strlen(argv[1]);
+                            if(argv[1][len-1] == '/')   argv[1][len-1] = '\0';
+                            if(strcmp(argv[1], "-l")==0)    sys_ls(NULL, 1);
+                            else    sys_ls(argv[1], 0);
+                        }
+                    }
+                    else if(strcmp(argv[0], "cd")==0)
+                    {
+                        if(argc==1) printf("Error: cd needs input path\n");
+                        else if(argc==2)
+                        {
+                            int len = strlen(argv[1]);
+                            if(argv[1][len-1] == '/')   argv[1][len-1] = '\0';  // ensure: cd path(without path/)
+                            int ret = sys_cd(argv[1]);
+                            // refresh path displayed in shell
+                            if(ret >= 0)
+                            {
+                                int cur = 0, idx = 0;
+                                char buf[100];
+                                for(; ; cur++)
+                                {
+                                    if(argv[1][cur] == '/' || argv[1][cur] == '\0')
+                                    {
+                                        buf[idx] = '\0';
+                                        if(strcmp(buf, "..") == 0 && strcmp(cur_path, "~")!=0)
+                                        {
+                                            int end = strlen(cur_path)-1;
+                                            for(; end>=0 && cur_path[end]!='/'; end--);
+                                            cur_path[end] = '\0';
+                                        }
+                                        else
+                                        {
+                                            strcat(cur_path, "/");
+                                            strcat(cur_path, argv[1]);
+                                        }
+                                        idx = 0;
+                                        if(argv[1][cur] == '\0')    break;
+                                    }
+                                    else
+                                        buf[idx++] = argv[1][cur];
+                                }
+                            }
+                        }
+                    }
                     else
                         printf("Error: Unkown command \"%s\"\n", buffer);
                 }  
             }
-            printf("> root@UCAS_OS: ");
+            printf("> root@UCAS_OS: %s$ ", cur_path);
             buf_ptr = 0;
         }
         else 

@@ -108,6 +108,7 @@ typedef struct pcb
     int lock_id[16];
     int lock_ptr;
     int is_thread;
+    uint32_t cwd_inode_id;
     uint64_t pgdir; // kva
 } pcb_t;
 

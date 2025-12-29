@@ -77,4 +77,17 @@ extern int do_ln(char *src_path, char *dst_path);
 extern int do_rm(char *path);
 extern int do_lseek(int fd, int offset, int whence);
 
+extern void fs_init();
+
+uint32_t get_block_sector(uint32_t block_id);
+void read_inode(uint32_t inode_id, inode_t *inode);
+void write_inode(uint32_t inode_id, inode_t* inode);
+uint32_t alloc_inode();
+uint32_t alloc_block();
+int alloc_dentry(dentry_t* dentries);
+int lookup_entry(inode_t* parent_inode, char* path);
+uint32_t inode_to_block_id(inode_t* inode);
+int count_set_bits(uint8_t byte);
+int is_dir_empty(inode_t *dir_inode);
+
 #endif

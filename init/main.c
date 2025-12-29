@@ -248,6 +248,7 @@ static void init_pcb(void)
         idle->cpu_id = i;
         idle->mask = 3; // to enable initail task mask is 0b11
         idle->is_thread = 0;
+        idle->cwd_inode_id = 1; // point to root
         idle->pgdir = pa2kva(PGDIR_PA);
         idle->kernel_sp = idle->kernel_stack_base = stack_top;
         idle->user_sp = idle->user_stack_base = 0;
@@ -444,7 +445,7 @@ int main(void)
         // printk("> [MASTER] Core 0 Init Done. Releasing Kernel Lock.\n");
 
         init_pipes();
-
+        fs_init();
         
 
         unlock_kernel();

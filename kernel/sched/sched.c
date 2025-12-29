@@ -360,6 +360,10 @@ pid_t do_exec(char *name, int argc, char *argv[])
     if(current_running[cpu_id]->pid > 1)    // not launched by shell or pid0
         pcb[i].mask = current_running[cpu_id]->mask;    // the same with parent
 
+    pcb[i].cwd_inode_id = current_running[cpu_id]->cwd_inode_id;
+    if (pcb[i].cwd_inode_id <= 0)
+        pcb[i].cwd_inode_id = 1;
+
     pcb[i].pgdir = allocPage(1);
     share_pgtable(pcb[i].pgdir, pa2kva(PGDIR_PA));  // share kernel mapping
     pcb[i].entry = load_task_img(name, tasks, tasknum, pcb[i].pgdir);
@@ -491,6 +495,10 @@ void do_thread_create(int* thread_id, void *target, void* arg)
     thread->mask = parent->mask; // Share affinity
     thread->cpu_id = parent->cpu_id;
     strcpy(thread->name, parent->name); 
+
+    thread->cwd_inode_id = parent->cwd_inode_id;
+    if (thread->cwd_inode_id <= 0)
+        thread->cwd_inode_id = 1;
 
     thread->pgdir = parent->pgdir;  // Share address space
 
