@@ -235,8 +235,8 @@ int main(void)
                     }
                     else if(strcmp(argv[0], "cd")==0)
                     {
-                        if(argc==1) printf("Error: cd needs input path\n");
-                        else if(argc==2)
+                        if(argc!=2) printf("Error: Usage: cd <pathname>\n");
+                        else
                         {
                             int len = strlen(argv[1]);
                             if(argv[1][len-1] == '/')   argv[1][len-1] = '\0';  // ensure: cd path(without path/)
@@ -251,16 +251,19 @@ int main(void)
                                     if(argv[1][cur] == '/' || argv[1][cur] == '\0')
                                     {
                                         buf[idx] = '\0';
-                                        if(strcmp(buf, "..") == 0 && strcmp(cur_path, "~")!=0)
+                                        if(strcmp(buf, "..") == 0)
                                         {
-                                            int end = strlen(cur_path)-1;
-                                            for(; end>=0 && cur_path[end]!='/'; end--);
-                                            cur_path[end] = '\0';
+                                            if(strcmp(cur_path, "~")!=0)
+                                            {
+                                                int end = strlen(cur_path)-1;
+                                                for(; end>=0 && cur_path[end]!='/'; end--);
+                                                cur_path[end] = '\0';
+                                            }
                                         }
                                         else
                                         {
                                             strcat(cur_path, "/");
-                                            strcat(cur_path, argv[1]);
+                                            strcat(cur_path, buf);
                                         }
                                         idx = 0;
                                         if(argv[1][cur] == '\0')    break;
@@ -268,6 +271,49 @@ int main(void)
                                     else
                                         buf[idx++] = argv[1][cur];
                                 }
+                            }
+                        }
+                    }
+                    else if(strcmp(argv[0], "touch") == 0)
+                    {
+                        if(argc!=2) printf("Error: Usage: touch <filename>\n");
+                        else
+                        {
+                            int len = strlen(argv[1]);
+                            if(argv[1][len-1] == '/')   argv[1][len-1] = '\0';
+                            int fd = sys_open(argv[1], O_RDWR);
+                            if (fd != -1)
+                                sys_close(fd);
+                            else
+                                printf("Error: Failed to touch file %s\n", argv[1]);
+                        }
+                    }
+                    else if(strcmp(argv[0], "cat") == 0)
+                    {
+                        if(argc!=2) printf("Error: Usage: cat <filename>\n");
+                        else
+                        {
+                            int len = strlen(argv[1]);
+                            if(argv[1][len-1] == '/')   argv[1][len-1] = '\0';
+                            char *filename = argv[1];
+
+                            char buffer[1024];
+                            int fd = sys_open(filename, O_RDONLY);
+                            if (fd == -1) 
+                                printf("Error: File %s not found.\n", filename);
+                            else
+                            {
+                                int nbytes;
+                                while (1) 
+                                {
+                                    memset(buffer, 0, sizeof(buffer));  // ensure printf str safety
+                                    nbytes = sys_read(fd, buffer, sizeof(buffer) - 1); 
+                                    if (nbytes <= 0)
+                                        break; // EOF or error
+                                    printf("%s", buffer);
+                                }
+                                printf("\n");                    
+                                sys_close(fd);
                             }
                         }
                     }

@@ -13,6 +13,7 @@ int main(void)
     {
         sys_write(fd, "hello world!\n", 13);
     }
+    sys_lseek(fd, 0, SEEK_SET); // after write, seek to head again
 
     // read
     for (int i = 0; i < 10; i++)

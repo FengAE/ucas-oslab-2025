@@ -7,7 +7,7 @@
 
 /* macros of file system */
 #define SUPERBLOCK_MAGIC 0xDF4C4459
-#define NUM_FDESCS 16
+#define NUM_FDESCS 32
 
 
 #define BLOCK_SIZE  4096
@@ -44,12 +44,16 @@ typedef struct inode {  // Describe specific file
     // TODO [P6-task1]: Implement the data structure of inode
     uint16_t mode;          // IM_DIR or IM_FILE
     uint16_t link_count;    // hard link num
-    uint32_t indirect_block;
-    uint64_t size;
+    uint32_t indirect_block;    // l1 indirect (Max: 1024*4KB = 4MB)
+    uint32_t double_indirect_block; // l2 indirect (Max: 1024*1024*4KB = 4GB>128MB)
+    uint32_t size;
 } inode_t;
 
 typedef struct fdesc {
     // TODO [P6-task2]: Implement the data structure of file descriptor
+    uint32_t inode_id;  // used for get inode
+    int access;         // O_RDONLY, O_WRONLY, O_RDWR
+    uint64_t pos;       // pos ptr in file
 } fdesc_t;
 
 /* modes of do_open */
@@ -82,12 +86,16 @@ extern void fs_init();
 uint32_t get_block_sector(uint32_t block_id);
 void read_inode(uint32_t inode_id, inode_t *inode);
 void write_inode(uint32_t inode_id, inode_t* inode);
+void free_inode(int inode_id);
 uint32_t alloc_inode();
 uint32_t alloc_block();
+void free_block(uint32_t block_id);
 int alloc_dentry(dentry_t* dentries);
-int lookup_entry(inode_t* parent_inode, char* path);
+int lookup_entry_single(inode_t* parent_inode, char* path);
 uint32_t inode_to_block_id(inode_t* inode);
 int count_set_bits(uint8_t byte);
 int is_dir_empty(inode_t *dir_inode);
+int parent_add_dentry(inode_t* parent_inode, uint32_t parent_id, char* name, int new_inode_id, int mode);
+uint32_t fs_get_block_sector(uint32_t inode_id, uint32_t logical_block, int create);
 
 #endif
