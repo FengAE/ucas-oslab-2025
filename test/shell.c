@@ -317,6 +317,28 @@ int main(void)
                             }
                         }
                     }
+                    else if(strcmp(argv[0], "rm") == 0)
+                    {
+                        if(argc != 2)   printf("Error: Usage: rm <filename>\n");
+                        else
+                        {
+                            int len = strlen(argv[1]);
+                            if(argv[1][len-1] == '/')   argv[1][len-1] = '\0';
+                            sys_rm(argv[1]);
+                        }
+                    }
+                    else if(strcmp(argv[0], "ln") == 0)
+                    {
+                        if(argc != 3)   printf("Error: Usage: ln <old_file> <new_file>\n");
+                        else
+                        {
+                            int len = strlen(argv[1]);
+                            if(argv[1][len-1] == '/')   argv[1][len-1] = '\0';
+                            len = strlen(argv[2]);
+                            if(argv[2][len-1] == '/')   argv[2][len-1] = '\0';
+                            sys_ln(argv[1], argv[2]);
+                        }
+                    }
                     else
                         printf("Error: Unkown command \"%s\"\n", buffer);
                 }  

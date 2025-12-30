@@ -92,7 +92,7 @@ uint32_t alloc_block();
 void free_block(uint32_t block_id);
 int alloc_dentry(dentry_t* dentries);
 int lookup_entry_single(inode_t* parent_inode, char* path);
-uint32_t inode_to_block_id(inode_t* inode);
+uint32_t get_first_data_block_id(inode_t* inode);
 int count_set_bits(uint8_t byte);
 int is_dir_empty(inode_t *dir_inode);
 int parent_add_dentry(inode_t* parent_inode, uint32_t parent_id, char* name, int new_inode_id, int mode);

@@ -123,7 +123,7 @@ int alloc_dentry(dentry_t* dentries)
 int lookup_entry_single(inode_t* parent_inode, char* path)
 {   // only check cur dir!
     if(parent_inode->mode!=IM_DIR)  return -1;  // not entry
-    uint32_t data_blk_id = inode_to_block_id(parent_inode);
+    uint32_t data_blk_id = get_first_data_block_id(parent_inode);
     bios_sd_read(kva2pa((uintptr_t)temp_buf), SEC_PER_BLOCK, get_block_sector(data_blk_id));
     dentry_t *dentries = (dentry_t *)temp_buf;  // in prj: set . as 0, and .. as 1
 
@@ -167,8 +167,8 @@ int lookup_entry(inode_t cwd, char* path)
     return target_id;
 }
 
-uint32_t inode_to_block_id(inode_t* inode)
-{
+uint32_t get_first_data_block_id(inode_t* inode)
+{   // get l1 block id --> data_id here!
     uint32_t l1_id = inode->indirect_block;
     // Use local buffer to avoid corrupting global temp_buf used by caller
     uint8_t local_buf[SECTOR_SIZE]; 
@@ -447,7 +447,7 @@ int do_mkdir(char *path)
 int parent_add_dentry(inode_t* parent_inode, uint32_t parent_id, char* name, int new_inode_id, int mode)
 {   // Add specific name and inode_id file or dir, into parent_inode
     // mode=1: file; mode=0: dir
-    uint32_t parent_data_id = inode_to_block_id(parent_inode);
+    uint32_t parent_data_id = get_first_data_block_id(parent_inode);
     bios_sd_read(kva2pa((uintptr_t)temp_buf), SEC_PER_BLOCK, get_block_sector(parent_data_id));
     dentry_t* dentries = (dentry_t *)temp_buf;
 
@@ -471,7 +471,7 @@ int parent_add_dentry(inode_t* parent_inode, uint32_t parent_id, char* name, int
 
 int is_dir_empty(inode_t *dir_inode) 
 {   // assume dir is single level
-    uint32_t data_block_id = inode_to_block_id(dir_inode);
+    uint32_t data_block_id = get_first_data_block_id(dir_inode);
     bios_sd_read(kva2pa((uintptr_t)temp_buf), SEC_PER_BLOCK, get_block_sector(data_block_id));
     dentry_t *dentries = (dentry_t *)temp_buf;
     int max_dentry = BLOCK_SIZE / sizeof(dentry_t);
@@ -500,7 +500,7 @@ int do_rmdir(char *path)
     // 2. Find target dentry in Parent
     // We need the index to clear it later, lookup_entry_single only returns ID.
     // So we repeat lookup logic here
-    uint32_t parent_data_id = inode_to_block_id(&parent_inode);
+    uint32_t parent_data_id = get_first_data_block_id(&parent_inode);
     bios_sd_read(kva2pa((uintptr_t)temp_buf), SEC_PER_BLOCK, get_block_sector(parent_data_id));
     dentry_t *dentries = (dentry_t *)temp_buf;
     
@@ -601,7 +601,7 @@ int do_ls(char *path, int option)
         return -1;
     }
 
-    uint32_t data_id = inode_to_block_id(&dir_inode);
+    uint32_t data_id = get_first_data_block_id(&dir_inode);
     bios_sd_read(kva2pa((uintptr_t)temp_buf), SEC_PER_BLOCK, get_block_sector(data_id));
     dentry_t *dentries = (dentry_t *)temp_buf;
 
@@ -712,11 +712,63 @@ int do_open(char *path, int mode)
     // TODO [P6-task2]: Implement do_open
     spin_lock_acquire(&fs_lock);
 
-    inode_t cwd, target_inode;
+    char parent_path[64];
+    char filename[32];
+    char *last_slash = NULL;
+    char *p = path;
+    while (*p)
+     {
+        if (*p == '/') last_slash = p;
+        p++;
+    }
+
+    inode_t cwd, target_inode, parent_inode;
     memset(&target_inode, 0, sizeof(target_inode));
     uint32_t cwd_id = current_running[get_current_cpu_id()]->cwd_inode_id;
+    uint32_t parent_inode_id;
     read_inode(cwd_id, &cwd);
-    int inode_id = lookup_entry(cwd, path);
+
+    if (last_slash) 
+    {
+        // multiple path (e.g., "dir/file")
+        int parent_len = last_slash - path;
+        if (parent_len >= 64) 
+        {
+            printk("Error: Path too long\n");
+            spin_lock_release(&fs_lock);
+            return -1;
+        }
+        memcpy(parent_path, path, parent_len);
+        parent_path[parent_len] = '\0';
+        strcpy(filename, last_slash + 1);
+
+        // search parent dir inode
+        int lookup_ret = lookup_entry(cwd, parent_path);
+        if (lookup_ret < 0) 
+        {
+            printk("Error: Directory %s not found\n", parent_path);
+            spin_lock_release(&fs_lock);
+            return -1;
+        }
+        parent_inode_id = (uint32_t)lookup_ret;
+        read_inode(parent_inode_id, &parent_inode);
+
+        if (parent_inode.mode != IM_DIR) 
+        {
+            printk("Error: %s is not a directory\n", parent_path);
+            spin_lock_release(&fs_lock);
+            return -1;
+        }
+    } 
+    else 
+    {
+        // single name
+        parent_inode_id = cwd_id;
+        parent_inode = cwd;
+        strcpy(filename, path);
+    }
+
+    int inode_id = lookup_entry_single(&parent_inode, filename);
 
     if (inode_id < 0) 
     {
@@ -742,7 +794,7 @@ int do_open(char *path, int mode)
         write_inode(inode_id, &target_inode);
 
         // Add to parent's dentry
-        int ret = parent_add_dentry(&cwd, cwd_id, path, inode_id, 1);
+        int ret = parent_add_dentry(&parent_inode, parent_inode_id, filename, inode_id, 1);
         if(ret < 0)
         {
             free_inode(inode_id);
@@ -903,17 +955,189 @@ int do_close(int fd)
 }
 
 int do_ln(char *src_path, char *dst_path)
-{
+{   // Here only use hard link
     // TODO [P6-task2]: Implement do_ln
+    spin_lock_acquire(&fs_lock);
+    // 1. Find Source Inode
+    inode_t cwd;
+    read_inode(current_running[get_current_cpu_id()]->cwd_inode_id, &cwd);
+    int src_inode_id = lookup_entry(cwd, src_path);
+    if (src_inode_id < 0) 
+    {
+        printk("Error: Source file %s not found\n", src_path);
+        spin_lock_release(&fs_lock);
+        return -1;
+    }
+    inode_t src_inode;
+    read_inode(src_inode_id, &src_inode);
+    if (src_inode.mode == IM_DIR) 
+    {
+        printk("Error: Cannot link directories\n");
+        spin_lock_release(&fs_lock);
+        return -1;
+    }
 
-    return 0;  // do_ln succeeds 
+    // 2. Parse Destination Path
+    inode_t dst_parent_inode;
+    uint32_t dst_parent_id;
+    char dst_name[32];
+    // Simple parsing logic: handle "a/b/c" or "c"
+    char *last_slash = NULL;
+    char *p = dst_path;
+    while (*p) 
+    {
+        if (*p == '/') last_slash = p;
+        p++;
+    }
+
+    if (last_slash) 
+    {
+        // Has directory prefix
+        int parent_len = last_slash - dst_path;
+        if (parent_len >= 32) { spin_lock_release(&fs_lock); return -1; }
+        char parent_path[32];
+        memcpy(parent_path, dst_path, parent_len);
+        parent_path[parent_len] = '\0';
+        
+        dst_parent_id = lookup_entry(cwd, parent_path);
+        if ((int)dst_parent_id < 0) 
+        {
+            printk("Error: Dest directory not found\n");
+            spin_lock_release(&fs_lock);
+            return -1;
+        }
+        read_inode(dst_parent_id, &dst_parent_inode);
+        strcpy(dst_name, last_slash + 1);
+    } 
+    else 
+    {
+        // In CWD
+        dst_parent_id = current_running[get_current_cpu_id()]->cwd_inode_id;
+        read_inode(dst_parent_id, &dst_parent_inode);
+        strcpy(dst_name, dst_path);
+    }
+
+    // 3. Check if destination already exists
+    if (lookup_entry_single(&dst_parent_inode, dst_name) > 0) 
+    {
+        printk("Error: Destination file %s exists\n", dst_name);
+        spin_lock_release(&fs_lock);
+        return -1;
+    }
+
+    // 4. Create Entry in Dest Parent
+    int ret = parent_add_dentry(&dst_parent_inode, dst_parent_id, dst_name, src_inode_id, 1);
+    if (ret < 0) 
+    {
+        spin_lock_release(&fs_lock);
+        return -1;
+    }
+    // 5. Increment Link Count
+    src_inode.link_count++;
+    write_inode(src_inode_id, &src_inode);
+    spin_lock_release(&fs_lock);
+    return 0;
 }
 
 int do_rm(char *path)
 {
     // TODO [P6-task2]: Implement do_rm
+    spin_lock_acquire(&fs_lock);
+    // 1. Get Parent Inode
+    inode_t parent_inode;
+    uint32_t parent_id = current_running[get_current_cpu_id()]->cwd_inode_id;
+    read_inode(parent_id, &parent_inode);
 
-    return 0;  // do_rm succeeds 
+    uint32_t parent_data_id = get_first_data_block_id(&parent_inode);
+    bios_sd_read(kva2pa((uintptr_t)temp_buf), SEC_PER_BLOCK, get_block_sector(parent_data_id));
+    dentry_t *dentries = (dentry_t *)temp_buf;
+    
+    int target_idx = -1;
+    uint32_t target_inode_id = 0;
+    int max_dentry = BLOCK_SIZE / sizeof(dentry_t);
+
+    for (int i = 0; i < max_dentry; i++) 
+    {
+        if (dentries[i].inode_id > 0 && strcmp(dentries[i].name, path) == 0) 
+        {
+            target_idx = i;
+            target_inode_id = dentries[i].inode_id;
+            break;
+        }
+    }
+    if (target_idx == -1) 
+    {
+        printk("Error: File %s not found\n", path);
+        spin_lock_release(&fs_lock);
+        return -1;
+    }
+
+    // 2. Read Target Inode
+    inode_t target_inode;
+    read_inode(target_inode_id, &target_inode);
+    if (target_inode.mode == IM_DIR) 
+    {
+        printk("Error: %s is a directory, use rmdir\n", path);
+        spin_lock_release(&fs_lock);
+        return -1;
+    }
+
+    // 3. Remove Dentry from Parent
+    dentries[target_idx].inode_id = 0;
+    dentries[target_idx].name[0] = '\0';
+    bios_sd_write(kva2pa((uintptr_t)temp_buf), SEC_PER_BLOCK, get_block_sector(parent_data_id));
+
+    parent_inode.size -= sizeof(dentry_t); 
+    write_inode(parent_id, &parent_inode); 
+    target_inode.link_count--;
+
+    if (target_inode.link_count > 0)    // Just update link count
+        write_inode(target_inode_id, &target_inode);
+    else 
+    {
+        // 5. Free Resources (Real Delete)
+        // Attention: here use temp_buf, to avoid kernel stack overflow!!
+        // A. Free Indirect L1 Blocks
+        if (target_inode.indirect_block != 0) 
+        {
+            uint32_t l1_id = target_inode.indirect_block;
+            bios_sd_read(kva2pa((uintptr_t)temp_buf), SEC_PER_BLOCK, get_block_sector(l1_id));
+            for (int i = 0; i < BLOCK_SIZE / 4; i++) 
+            {
+                if (temp_buf[i] != 0)
+                    free_block(temp_buf[i]);
+            }
+            free_block(l1_id);
+        }
+
+        // B. Free Double Indirect L2 Blocks
+        if (target_inode.double_indirect_block != 0) 
+        {
+            uint32_t l2_id = target_inode.double_indirect_block;
+            uint32_t l2_idx_buf[BLOCK_SIZE / 4];
+            uint32_t inner_l1_buf[BLOCK_SIZE / 4];
+            bios_sd_read(kva2pa((uintptr_t)l2_idx_buf), SEC_PER_BLOCK, get_block_sector(l2_id));
+            for (int i = 0; i < BLOCK_SIZE / 4; i++) 
+            {
+                bios_sd_read(kva2pa((uintptr_t)temp_buf), SEC_PER_BLOCK, get_block_sector(l2_id));
+                uint32_t l1_id_in_l2 = temp_buf[i];
+                if (l1_id_in_l2 != 0) 
+                {
+                    bios_sd_read(kva2pa((uintptr_t)temp_buf), SEC_PER_BLOCK, get_block_sector(l1_id_in_l2));
+                    for (int j = 0; j < BLOCK_SIZE / 4; j++) 
+                    {
+                        if (temp_buf[j] != 0)
+                            free_block(temp_buf[j]);
+                    }
+                    free_block(l1_id_in_l2);
+                }
+            }
+            free_block(l2_id);
+        }
+        free_inode(target_inode_id);
+    }
+    spin_lock_release(&fs_lock);
+    return 0;
 }
 
 int do_lseek(int fd, int offset, int whence)

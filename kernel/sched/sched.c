@@ -375,7 +375,7 @@ pid_t do_exec(char *name, int argc, char *argv[])
         return -3;    
     }   // load img failed
 
-    pcb[i].kernel_stack_base = allocPage(4)+PAGE_SIZE;
+    pcb[i].kernel_stack_base = allocPage(16)+PAGE_SIZE;
     pcb[i].user_stack_base = USER_STACK_ADDR;
     uintptr_t user_stack_page_va  = USER_STACK_ADDR - PAGE_SIZE;
     uintptr_t user_stack_page_kva = alloc_page_helper(user_stack_page_va, pcb[i].pgdir);
